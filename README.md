@@ -39,6 +39,8 @@ Then serve `web/` with any static web server.
 
 `rde-core` contains the RDE algorithm with no browser or I/O dependencies; `web/` contains the browser reviewer.
 
+[SPEC.md](SPEC.md) is the design record the code's `SPEC §N` comments refer to.
+
 ## Differences from MegaDetector RDE
 
 **Video support.** RocksBeGone supports MegaDetector video results and decodes only the frames needed for review in the browser, so videos and still images can be reviewed together without pre-extracting frames.
