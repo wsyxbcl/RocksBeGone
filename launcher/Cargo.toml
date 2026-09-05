@@ -1,0 +1,20 @@
+[package]
+name = "rocksbegone-launcher"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Serves RocksBeGone to this machine and opens a browser"
+
+# The binary is what a user double-clicks, so it takes the product's name; the
+# package cannot, because the wasm crate already has it.
+[[bin]]
+name = "rocksbegone"
+path = "src/main.rs"
+
+[dependencies]
+
+[profile.release]
+opt-level = "z"
+lto = true
+strip = "symbols"

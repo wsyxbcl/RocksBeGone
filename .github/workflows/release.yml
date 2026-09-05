@@ -1,0 +1,99 @@
+name: release
+
+# Tag a version to cut a release:
+#   git tag v0.1.0 && git push origin v0.1.0
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  # The wasm is identical on every platform, so it is built once and handed to
+  # each packaging job. Building it three times would also risk three different
+  # bundles going out under one version.
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: jetli/wasm-pack-action@v0.4.0
+      - run: cd web && wasm-pack build --release --target web --out-dir pkg
+      - name: Collect the files a release actually needs
+        run: |
+          mkdir -p site/vendor site/pkg
+          cp web/index.html web/rde-worker.js web/media-worker.js web/video-frames.js site/
+          cp web/vendor/*.mjs web/vendor/mp4box.LICENSE site/vendor/
+          cp web/pkg/rocksbegone.js web/pkg/rocksbegone_bg.wasm site/pkg/
+          cp README.md LICENSE site/ 2>/dev/null || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: site
+          path: site
+
+  package:
+    needs: web
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            name: linux-x86_64
+            bin: rocksbegone
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            name: windows-x86_64
+            bin: rocksbegone.exe
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            name: macos-arm64
+            bin: rocksbegone
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - run: cargo build --release --locked --package rocksbegone-launcher --target ${{ matrix.target }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: site
+          path: rocksbegone-${{ matrix.name }}
+      - name: Put the launcher beside the site it serves
+        shell: bash
+        run: |
+          cp "target/${{ matrix.target }}/release/${{ matrix.bin }}" "rocksbegone-${{ matrix.name }}/"
+      # The launcher serves the folder it sits in, so the binary must be at the
+      # top of the zip next to index.html — not in a bin/ subfolder.
+      - name: Zip
+        shell: bash
+        run: |
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            7z a "rocksbegone-${{ matrix.name }}.zip" "rocksbegone-${{ matrix.name }}"
+          else
+            zip -r "rocksbegone-${{ matrix.name }}.zip" "rocksbegone-${{ matrix.name }}"
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rocksbegone-${{ matrix.name }}
+          path: rocksbegone-${{ matrix.name }}.zip
+
+  publish:
+    needs: package
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: rocksbegone-*
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: "*.zip"
+          generate_release_notes: true
+          body: |
+            Unzip and run `rocksbegone` — it serves the folder to your own
+            machine and opens your browser. Nothing is uploaded anywhere.

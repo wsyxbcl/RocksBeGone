@@ -1,0 +1,807 @@
+{
+ "info": {
+  "format_version": "1.5",
+  "detector": "mdv1000-redwood (synthetic demo)"
+ },
+ "detection_categories": {
+  "1": "animal",
+  "2": "person",
+  "3": "vehicle"
+ },
+ "images": [
+  {
+   "file": "/home/wsyxbcl/scripts/MegaDetector/rde-lab/demo/images/cam_A/frame_0001.jpg",
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.281,
+     "bbox": [
+      0.4,
+      0.35,
+      0.12,
+      0.16
+     ]
+    }
+   ]
+  },
+  {
+   "file": "/home/wsyxbcl/scripts/MegaDetector/rde-lab/demo/images/cam_A/frame_0002.jpg",
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.442,
+     "bbox": [
+      0.4,
+      0.35,
+      0.12,
+      0.16
+     ]
+    }
+   ]
+  },
+  {
+   "file": "/home/wsyxbcl/scripts/MegaDetector/rde-lab/demo/images/cam_A/frame_0003.jpg",
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.258,
+     "bbox": [
+      0.4,
+      0.35,
+      0.12,
+      0.16
+     ]
+    }
+   ]
+  },
+  {
+   "file": "/home/wsyxbcl/scripts/MegaDetector/rde-lab/demo/images/cam_A/frame_0004.jpg",
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.204,
+     "bbox": [
+      0.4,
+      0.35,
+      0.12,
+      0.16
+     ]
+    }
+   ]
+  },
+  {
+   "file": "/home/wsyxbcl/scripts/MegaDetector/rde-lab/demo/images/cam_A/frame_0005.jpg",
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.691,
+     "bbox": [
+      0.4,
+      0.35,
+      0.12,
+      0.16
+     ]
+    }
+   ]
+  },
+  {
+   "file": "/home/wsyxbcl/scripts/MegaDetector/rde-lab/demo/images/cam_A/frame_0006.jpg",
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.231,
+     "bbox": [
+      0.4,
+      0.35,
+      0.12,
+      0.16
+     ]
+    }
+   ]
+  },
+  {
+   "file": "/home/wsyxbcl/scripts/MegaDetector/rde-lab/demo/images/cam_A/frame_0007.jpg",
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.213,
+     "bbox": [
+      0.4,
+      0.35,
+      0.12,
+      0.16
+     ]
+    }
+   ]
+  },
+  {
+   "file": "/home/wsyxbcl/scripts/MegaDetector/rde-lab/demo/images/cam_A/frame_0008.jpg",
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.942,
+     "bbox": [
+      0.15,
+      0.35,
+      0.5,
+      0.45
+     ]
+    },
+    {
+     "category": "1",
+     "conf": 0.343,
+     "bbox": [
+      0.4,
+      0.35,
+      0.12,
+      0.16
+     ]
+    }
+   ]
+  },
+  {
+   "file": "/home/wsyxbcl/scripts/MegaDetector/rde-lab/demo/images/cam_A/frame_0009.jpg",
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.352,
+     "bbox": [
+      0.4,
+      0.35,
+      0.12,
+      0.16
+     ]
+    }
+   ]
+  },
+  {
+   "file": "/home/wsyxbcl/scripts/MegaDetector/rde-lab/demo/images/cam_A/frame_0010.jpg",
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.294,
+     "bbox": [
+      0.4,
+      0.35,
+      0.12,
+      0.16
+     ]
+    }
+   ]
+  },
+  {
+   "file": "/home/wsyxbcl/scripts/MegaDetector/rde-lab/demo/images/cam_A/frame_0011.jpg",
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.436,
+     "bbox": [
+      0.4,
+      0.35,
+      0.12,
+      0.16
+     ]
+    }
+   ]
+  },
+  {
+   "file": "/home/wsyxbcl/scripts/MegaDetector/rde-lab/demo/images/cam_A/frame_0012.jpg",
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.212,
+     "bbox": [
+      0.4,
+      0.35,
+      0.12,
+      0.16
+     ]
+    }
+   ]
+  },
+  {
+   "file": "/home/wsyxbcl/scripts/MegaDetector/rde-lab/demo/images/cam_A/frame_0013.jpg",
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.215,
+     "bbox": [
+      0.4,
+      0.35,
+      0.12,
+      0.16
+     ]
+    }
+   ]
+  },
+  {
+   "file": "/home/wsyxbcl/scripts/MegaDetector/rde-lab/demo/images/cam_A/frame_0014.jpg",
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.722,
+     "bbox": [
+      0.4,
+      0.35,
+      0.12,
+      0.16
+     ]
+    }
+   ]
+  },
+  {
+   "file": "/home/wsyxbcl/scripts/MegaDetector/rde-lab/demo/images/cam_A/frame_0015.jpg",
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.34,
+     "bbox": [
+      0.4,
+      0.35,
+      0.12,
+      0.16
+     ]
+    }
+   ]
+  },
+  {
+   "file": "/home/wsyxbcl/scripts/MegaDetector/rde-lab/demo/images/cam_A/frame_0016.jpg",
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.204,
+     "bbox": [
+      0.4,
+      0.35,
+      0.12,
+      0.16
+     ]
+    }
+   ]
+  },
+  {
+   "file": "/home/wsyxbcl/scripts/MegaDetector/rde-lab/demo/images/cam_A/frame_0017.jpg",
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.874,
+     "bbox": [
+      0.15,
+      0.35,
+      0.5,
+      0.45
+     ]
+    },
+    {
+     "category": "1",
+     "conf": 0.226,
+     "bbox": [
+      0.4,
+      0.35,
+      0.12,
+      0.16
+     ]
+    }
+   ]
+  },
+  {
+   "file": "/home/wsyxbcl/scripts/MegaDetector/rde-lab/demo/images/cam_A/frame_0018.jpg",
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.44,
+     "bbox": [
+      0.4,
+      0.35,
+      0.12,
+      0.16
+     ]
+    }
+   ]
+  },
+  {
+   "file": "/home/wsyxbcl/scripts/MegaDetector/rde-lab/demo/images/cam_A/frame_0019.jpg",
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.278,
+     "bbox": [
+      0.4,
+      0.35,
+      0.12,
+      0.16
+     ]
+    }
+   ]
+  },
+  {
+   "file": "/home/wsyxbcl/scripts/MegaDetector/rde-lab/demo/images/cam_A/frame_0020.jpg",
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.432,
+     "bbox": [
+      0.4,
+      0.35,
+      0.12,
+      0.16
+     ]
+    }
+   ]
+  },
+  {
+   "file": "/home/wsyxbcl/scripts/MegaDetector/rde-lab/demo/images/cam_A/frame_0021.jpg",
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.441,
+     "bbox": [
+      0.4,
+      0.35,
+      0.12,
+      0.16
+     ]
+    }
+   ]
+  },
+  {
+   "file": "/home/wsyxbcl/scripts/MegaDetector/rde-lab/demo/images/cam_A/frame_0022.jpg",
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.572,
+     "bbox": [
+      0.4,
+      0.35,
+      0.12,
+      0.16
+     ]
+    }
+   ]
+  },
+  {
+   "file": "/home/wsyxbcl/scripts/MegaDetector/rde-lab/demo/images/cam_A/frame_0023.jpg",
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.238,
+     "bbox": [
+      0.4,
+      0.35,
+      0.12,
+      0.16
+     ]
+    }
+   ]
+  },
+  {
+   "file": "/home/wsyxbcl/scripts/MegaDetector/rde-lab/demo/images/cam_A/frame_0024.jpg",
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.23,
+     "bbox": [
+      0.4,
+      0.35,
+      0.12,
+      0.16
+     ]
+    }
+   ]
+  },
+  {
+   "file": "/home/wsyxbcl/scripts/MegaDetector/rde-lab/demo/images/cam_A/frame_0025.jpg",
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.93,
+     "bbox": [
+      0.15,
+      0.35,
+      0.5,
+      0.45
+     ]
+    },
+    {
+     "category": "1",
+     "conf": 0.405,
+     "bbox": [
+      0.4,
+      0.35,
+      0.12,
+      0.16
+     ]
+    }
+   ]
+  },
+  {
+   "file": "/home/wsyxbcl/scripts/MegaDetector/rde-lab/demo/images/cam_A/frame_0026.jpg",
+   "detections": []
+  },
+  {
+   "file": "/home/wsyxbcl/scripts/MegaDetector/rde-lab/demo/images/cam_A/frame_0027.jpg",
+   "detections": []
+  },
+  {
+   "file": "/home/wsyxbcl/scripts/MegaDetector/rde-lab/demo/images/cam_A/frame_0028.jpg",
+   "detections": []
+  },
+  {
+   "file": "/home/wsyxbcl/scripts/MegaDetector/rde-lab/demo/images/cam_B/frame_0001.jpg",
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.261,
+     "bbox": [
+      0.68,
+      0.62,
+      0.1,
+      0.11
+     ]
+    }
+   ]
+  },
+  {
+   "file": "/home/wsyxbcl/scripts/MegaDetector/rde-lab/demo/images/cam_B/frame_0002.jpg",
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.378,
+     "bbox": [
+      0.68,
+      0.62,
+      0.1,
+      0.11
+     ]
+    }
+   ]
+  },
+  {
+   "file": "/home/wsyxbcl/scripts/MegaDetector/rde-lab/demo/images/cam_B/frame_0003.jpg",
+   "detections": [
+    {
+     "category": "2",
+     "conf": 0.834,
+     "bbox": [
+      0.199,
+      0.3,
+      0.14,
+      0.4
+     ]
+    },
+    {
+     "category": "1",
+     "conf": 0.307,
+     "bbox": [
+      0.68,
+      0.62,
+      0.1,
+      0.11
+     ]
+    }
+   ]
+  },
+  {
+   "file": "/home/wsyxbcl/scripts/MegaDetector/rde-lab/demo/images/cam_B/frame_0004.jpg",
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.339,
+     "bbox": [
+      0.68,
+      0.62,
+      0.1,
+      0.11
+     ]
+    }
+   ]
+  },
+  {
+   "file": "/home/wsyxbcl/scripts/MegaDetector/rde-lab/demo/images/cam_B/frame_0005.jpg",
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.344,
+     "bbox": [
+      0.68,
+      0.62,
+      0.1,
+      0.11
+     ]
+    }
+   ]
+  },
+  {
+   "file": "/home/wsyxbcl/scripts/MegaDetector/rde-lab/demo/images/cam_B/frame_0006.jpg",
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.395,
+     "bbox": [
+      0.68,
+      0.62,
+      0.1,
+      0.11
+     ]
+    }
+   ]
+  },
+  {
+   "file": "/home/wsyxbcl/scripts/MegaDetector/rde-lab/demo/images/cam_B/frame_0007.jpg",
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.338,
+     "bbox": [
+      0.68,
+      0.62,
+      0.1,
+      0.11
+     ]
+    }
+   ]
+  },
+  {
+   "file": "/home/wsyxbcl/scripts/MegaDetector/rde-lab/demo/images/cam_B/frame_0008.jpg",
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.235,
+     "bbox": [
+      0.68,
+      0.62,
+      0.1,
+      0.11
+     ]
+    }
+   ]
+  },
+  {
+   "file": "/home/wsyxbcl/scripts/MegaDetector/rde-lab/demo/images/cam_B/frame_0009.jpg",
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.311,
+     "bbox": [
+      0.68,
+      0.62,
+      0.1,
+      0.11
+     ]
+    }
+   ]
+  },
+  {
+   "file": "/home/wsyxbcl/scripts/MegaDetector/rde-lab/demo/images/cam_B/frame_0010.jpg",
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.287,
+     "bbox": [
+      0.68,
+      0.62,
+      0.1,
+      0.11
+     ]
+    }
+   ]
+  },
+  {
+   "file": "/home/wsyxbcl/scripts/MegaDetector/rde-lab/demo/images/cam_B/frame_0011.jpg",
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.357,
+     "bbox": [
+      0.68,
+      0.62,
+      0.1,
+      0.11
+     ]
+    }
+   ]
+  },
+  {
+   "file": "/home/wsyxbcl/scripts/MegaDetector/rde-lab/demo/images/cam_B/frame_0012.jpg",
+   "detections": [
+    {
+     "category": "2",
+     "conf": 0.935,
+     "bbox": [
+      0.168,
+      0.3,
+      0.14,
+      0.4
+     ]
+    },
+    {
+     "category": "1",
+     "conf": 0.384,
+     "bbox": [
+      0.68,
+      0.62,
+      0.1,
+      0.11
+     ]
+    }
+   ]
+  },
+  {
+   "file": "/home/wsyxbcl/scripts/MegaDetector/rde-lab/demo/images/cam_B/frame_0013.jpg",
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.249,
+     "bbox": [
+      0.68,
+      0.62,
+      0.1,
+      0.11
+     ]
+    }
+   ]
+  },
+  {
+   "file": "/home/wsyxbcl/scripts/MegaDetector/rde-lab/demo/images/cam_B/frame_0014.jpg",
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.365,
+     "bbox": [
+      0.68,
+      0.62,
+      0.1,
+      0.11
+     ]
+    }
+   ]
+  },
+  {
+   "file": "/home/wsyxbcl/scripts/MegaDetector/rde-lab/demo/images/cam_B/frame_0015.jpg",
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.2,
+     "bbox": [
+      0.68,
+      0.62,
+      0.1,
+      0.11
+     ]
+    }
+   ]
+  },
+  {
+   "file": "/home/wsyxbcl/scripts/MegaDetector/rde-lab/demo/images/cam_B/frame_0016.jpg",
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.231,
+     "bbox": [
+      0.68,
+      0.62,
+      0.1,
+      0.11
+     ]
+    }
+   ]
+  },
+  {
+   "file": "/home/wsyxbcl/scripts/MegaDetector/rde-lab/demo/images/cam_B/frame_0017.jpg",
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.287,
+     "bbox": [
+      0.68,
+      0.62,
+      0.1,
+      0.11
+     ]
+    }
+   ]
+  },
+  {
+   "file": "/home/wsyxbcl/scripts/MegaDetector/rde-lab/demo/images/cam_B/frame_0018.jpg",
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.218,
+     "bbox": [
+      0.68,
+      0.62,
+      0.1,
+      0.11
+     ]
+    }
+   ]
+  },
+  {
+   "file": "/home/wsyxbcl/scripts/MegaDetector/rde-lab/demo/images/cam_B/frame_0019.jpg",
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.375,
+     "bbox": [
+      0.68,
+      0.62,
+      0.1,
+      0.11
+     ]
+    }
+   ]
+  },
+  {
+   "file": "/home/wsyxbcl/scripts/MegaDetector/rde-lab/demo/images/cam_B/frame_0020.jpg",
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.235,
+     "bbox": [
+      0.68,
+      0.62,
+      0.1,
+      0.11
+     ]
+    }
+   ]
+  },
+  {
+   "file": "/home/wsyxbcl/scripts/MegaDetector/rde-lab/demo/images/cam_B/frame_0021.jpg",
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.333,
+     "bbox": [
+      0.68,
+      0.62,
+      0.1,
+      0.11
+     ]
+    }
+   ]
+  },
+  {
+   "file": "/home/wsyxbcl/scripts/MegaDetector/rde-lab/demo/images/cam_B/frame_0022.jpg",
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.282,
+     "bbox": [
+      0.68,
+      0.62,
+      0.1,
+      0.11
+     ]
+    }
+   ]
+  },
+  {
+   "file": "/home/wsyxbcl/scripts/MegaDetector/rde-lab/demo/images/cam_B/frame_0023.jpg",
+   "detections": []
+  },
+  {
+   "file": "/home/wsyxbcl/scripts/MegaDetector/rde-lab/demo/images/cam_B/frame_0024.jpg",
+   "detections": []
+  },
+  {
+   "file": "/home/wsyxbcl/scripts/MegaDetector/rde-lab/demo/images/cam_B/frame_0025.jpg",
+   "detections": []
+  },
+  {
+   "file": "/home/wsyxbcl/scripts/MegaDetector/rde-lab/demo/images/cam_exif/frame_0001.jpg",
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.7,
+     "bbox": [
+      0.58,
+      0.14,
+      0.16,
+      0.2
+     ]
+    }
+   ]
+  }
+ ]
+}

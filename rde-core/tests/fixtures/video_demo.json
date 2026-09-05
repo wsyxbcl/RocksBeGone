@@ -1,0 +1,2307 @@
+{
+ "info": {
+  "detector": "megadetector_v5a",
+  "note": "synthetic video fixture (SPEC 2.2)"
+ },
+ "detection_categories": {
+  "1": "animal",
+  "2": "person"
+ },
+ "images": [
+  {
+   "file": "/data/cam_V/VID_0001.mp4",
+   "frame_rate": 30.0,
+   "frames_processed": [
+    0,
+    1,
+    2,
+    150,
+    151,
+    152,
+    300
+   ],
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 0
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 1
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 2
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 150
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 151
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 152
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 300
+    },
+    {
+     "category": "2",
+     "conf": 0.95,
+     "bbox": [
+      0.1,
+      0.1,
+      0.6,
+      0.5
+     ],
+     "frame_number": 150
+    }
+   ]
+  },
+  {
+   "file": "/data/cam_V/VID_0002.mp4",
+   "frame_rate": 30.0,
+   "frames_processed": [
+    0,
+    1,
+    2,
+    150,
+    151,
+    152,
+    300
+   ],
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 0
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 1
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 2
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 150
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 151
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 152
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 300
+    },
+    {
+     "category": "2",
+     "conf": 0.95,
+     "bbox": [
+      0.1,
+      0.1,
+      0.6,
+      0.5
+     ],
+     "frame_number": 150
+    }
+   ]
+  },
+  {
+   "file": "/data/cam_V/VID_0003.mp4",
+   "frame_rate": 30.0,
+   "frames_processed": [
+    0,
+    1,
+    2,
+    150,
+    151,
+    152,
+    300
+   ],
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 0
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 1
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 2
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 150
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 151
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 152
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 300
+    },
+    {
+     "category": "2",
+     "conf": 0.95,
+     "bbox": [
+      0.1,
+      0.1,
+      0.6,
+      0.5
+     ],
+     "frame_number": 150
+    }
+   ]
+  },
+  {
+   "file": "/data/cam_V/VID_0004.mp4",
+   "frame_rate": 30.0,
+   "frames_processed": [
+    0,
+    1,
+    2,
+    150,
+    151,
+    152,
+    300
+   ],
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 0
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 1
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 2
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 150
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 151
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 152
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 300
+    },
+    {
+     "category": "2",
+     "conf": 0.95,
+     "bbox": [
+      0.1,
+      0.1,
+      0.6,
+      0.5
+     ],
+     "frame_number": 150
+    }
+   ]
+  },
+  {
+   "file": "/data/cam_V/VID_0005.mp4",
+   "frame_rate": 30.0,
+   "frames_processed": [
+    0,
+    1,
+    2,
+    150,
+    151,
+    152,
+    300
+   ],
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 0
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 1
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 2
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 150
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 151
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 152
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 300
+    },
+    {
+     "category": "2",
+     "conf": 0.95,
+     "bbox": [
+      0.1,
+      0.1,
+      0.6,
+      0.5
+     ],
+     "frame_number": 150
+    }
+   ]
+  },
+  {
+   "file": "/data/cam_V/VID_0006.mp4",
+   "frame_rate": 30.0,
+   "frames_processed": [
+    0,
+    1,
+    2,
+    150,
+    151,
+    152,
+    300
+   ],
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 0
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 1
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 2
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 150
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 151
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 152
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 300
+    },
+    {
+     "category": "2",
+     "conf": 0.95,
+     "bbox": [
+      0.1,
+      0.1,
+      0.6,
+      0.5
+     ],
+     "frame_number": 150
+    }
+   ]
+  },
+  {
+   "file": "/data/cam_V/VID_0007.mp4",
+   "frame_rate": 30.0,
+   "frames_processed": [
+    0,
+    1,
+    2,
+    150,
+    151,
+    152,
+    300
+   ],
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 0
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 1
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 2
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 150
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 151
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 152
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 300
+    },
+    {
+     "category": "2",
+     "conf": 0.95,
+     "bbox": [
+      0.1,
+      0.1,
+      0.6,
+      0.5
+     ],
+     "frame_number": 150
+    }
+   ]
+  },
+  {
+   "file": "/data/cam_V/VID_0008.mp4",
+   "frame_rate": 30.0,
+   "frames_processed": [
+    0,
+    1,
+    2,
+    150,
+    151,
+    152,
+    300
+   ],
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 0
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 1
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 2
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 150
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 151
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 152
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 300
+    },
+    {
+     "category": "2",
+     "conf": 0.95,
+     "bbox": [
+      0.1,
+      0.1,
+      0.6,
+      0.5
+     ],
+     "frame_number": 150
+    }
+   ]
+  },
+  {
+   "file": "/data/cam_V/VID_0009.mp4",
+   "frame_rate": 30.0,
+   "frames_processed": [
+    0,
+    1,
+    2,
+    150,
+    151,
+    152,
+    300
+   ],
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 0
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 1
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 2
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 150
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 151
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 152
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 300
+    },
+    {
+     "category": "2",
+     "conf": 0.95,
+     "bbox": [
+      0.1,
+      0.1,
+      0.6,
+      0.5
+     ],
+     "frame_number": 150
+    }
+   ]
+  },
+  {
+   "file": "/data/cam_V/VID_0010.mp4",
+   "frame_rate": 30.0,
+   "frames_processed": [
+    0,
+    1,
+    2,
+    150,
+    151,
+    152,
+    300
+   ],
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 0
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 1
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 2
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 150
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 151
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 152
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 300
+    },
+    {
+     "category": "2",
+     "conf": 0.95,
+     "bbox": [
+      0.1,
+      0.1,
+      0.6,
+      0.5
+     ],
+     "frame_number": 150
+    }
+   ]
+  },
+  {
+   "file": "/data/cam_V/VID_0011.mp4",
+   "frame_rate": 30.0,
+   "frames_processed": [
+    0,
+    1,
+    2,
+    150,
+    151,
+    152,
+    300
+   ],
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 0
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 1
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 2
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 150
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 151
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 152
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 300
+    },
+    {
+     "category": "2",
+     "conf": 0.95,
+     "bbox": [
+      0.1,
+      0.1,
+      0.6,
+      0.5
+     ],
+     "frame_number": 150
+    }
+   ]
+  },
+  {
+   "file": "/data/cam_V/VID_0012.mp4",
+   "frame_rate": 30.0,
+   "frames_processed": [
+    0,
+    1,
+    2,
+    150,
+    151,
+    152,
+    300
+   ],
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 0
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 1
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 2
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 150
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 151
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 152
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 300
+    },
+    {
+     "category": "2",
+     "conf": 0.95,
+     "bbox": [
+      0.1,
+      0.1,
+      0.6,
+      0.5
+     ],
+     "frame_number": 150
+    }
+   ]
+  },
+  {
+   "file": "/data/cam_V/VID_0013.mp4",
+   "frame_rate": 30.0,
+   "frames_processed": [
+    0,
+    1,
+    2,
+    150,
+    151,
+    152,
+    300
+   ],
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 0
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 1
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 2
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 150
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 151
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 152
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 300
+    },
+    {
+     "category": "2",
+     "conf": 0.95,
+     "bbox": [
+      0.1,
+      0.1,
+      0.6,
+      0.5
+     ],
+     "frame_number": 150
+    }
+   ]
+  },
+  {
+   "file": "/data/cam_V/VID_0014.mp4",
+   "frame_rate": 30.0,
+   "frames_processed": [
+    0,
+    1,
+    2,
+    150,
+    151,
+    152,
+    300
+   ],
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 0
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 1
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 2
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 150
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 151
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 152
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 300
+    },
+    {
+     "category": "2",
+     "conf": 0.95,
+     "bbox": [
+      0.1,
+      0.1,
+      0.6,
+      0.5
+     ],
+     "frame_number": 150
+    }
+   ]
+  },
+  {
+   "file": "/data/cam_V/VID_0015.mp4",
+   "frame_rate": 30.0,
+   "frames_processed": [
+    0,
+    1,
+    2,
+    150,
+    151,
+    152,
+    300
+   ],
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 0
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 1
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 2
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 150
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 151
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 152
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 300
+    },
+    {
+     "category": "2",
+     "conf": 0.95,
+     "bbox": [
+      0.1,
+      0.1,
+      0.6,
+      0.5
+     ],
+     "frame_number": 150
+    }
+   ]
+  },
+  {
+   "file": "/data/cam_V/VID_0016.mp4",
+   "frame_rate": 30.0,
+   "frames_processed": [
+    0,
+    1,
+    2,
+    150,
+    151,
+    152,
+    300
+   ],
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 0
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 1
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 2
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 150
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 151
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 152
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 300
+    },
+    {
+     "category": "2",
+     "conf": 0.95,
+     "bbox": [
+      0.1,
+      0.1,
+      0.6,
+      0.5
+     ],
+     "frame_number": 150
+    }
+   ]
+  },
+  {
+   "file": "/data/cam_V/VID_0017.mp4",
+   "frame_rate": 30.0,
+   "frames_processed": [
+    0,
+    1,
+    2,
+    150,
+    151,
+    152,
+    300
+   ],
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 0
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 1
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 2
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 150
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 151
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 152
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 300
+    },
+    {
+     "category": "2",
+     "conf": 0.95,
+     "bbox": [
+      0.1,
+      0.1,
+      0.6,
+      0.5
+     ],
+     "frame_number": 150
+    }
+   ]
+  },
+  {
+   "file": "/data/cam_V/VID_0018.mp4",
+   "frame_rate": 30.0,
+   "frames_processed": [
+    0,
+    1,
+    2,
+    150,
+    151,
+    152,
+    300
+   ],
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 0
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 1
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 2
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 150
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 151
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 152
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 300
+    },
+    {
+     "category": "2",
+     "conf": 0.95,
+     "bbox": [
+      0.1,
+      0.1,
+      0.6,
+      0.5
+     ],
+     "frame_number": 150
+    }
+   ]
+  },
+  {
+   "file": "/data/cam_V/VID_0019.mp4",
+   "frame_rate": 30.0,
+   "frames_processed": [
+    0,
+    1,
+    2,
+    150,
+    151,
+    152,
+    300
+   ],
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 0
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 1
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 2
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 150
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 151
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 152
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 300
+    },
+    {
+     "category": "2",
+     "conf": 0.95,
+     "bbox": [
+      0.1,
+      0.1,
+      0.6,
+      0.5
+     ],
+     "frame_number": 150
+    }
+   ]
+  },
+  {
+   "file": "/data/cam_V/VID_0020.mp4",
+   "frame_rate": 30.0,
+   "frames_processed": [
+    0,
+    1,
+    2,
+    150,
+    151,
+    152,
+    300
+   ],
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 0
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 1
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 2
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 150
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 151
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 152
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 300
+    },
+    {
+     "category": "2",
+     "conf": 0.95,
+     "bbox": [
+      0.1,
+      0.1,
+      0.6,
+      0.5
+     ],
+     "frame_number": 150
+    }
+   ]
+  },
+  {
+   "file": "/data/cam_V/VID_0021.mp4",
+   "frame_rate": 30.0,
+   "frames_processed": [
+    0,
+    1,
+    2,
+    150,
+    151,
+    152,
+    300
+   ],
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 0
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 1
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 2
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 150
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 151
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 152
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 300
+    },
+    {
+     "category": "2",
+     "conf": 0.95,
+     "bbox": [
+      0.1,
+      0.1,
+      0.6,
+      0.5
+     ],
+     "frame_number": 150
+    }
+   ]
+  },
+  {
+   "file": "/data/cam_V/VID_0022.mp4",
+   "frame_rate": 30.0,
+   "frames_processed": [
+    0,
+    1,
+    2,
+    150,
+    151,
+    152,
+    300
+   ],
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 0
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 1
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 2
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 150
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 151
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 152
+    },
+    {
+     "category": "1",
+     "conf": 0.3,
+     "bbox": [
+      0.5,
+      0.5,
+      0.08,
+      0.09
+     ],
+     "frame_number": 300
+    },
+    {
+     "category": "2",
+     "conf": 0.95,
+     "bbox": [
+      0.1,
+      0.1,
+      0.6,
+      0.5
+     ],
+     "frame_number": 150
+    }
+   ]
+  },
+  {
+   "file": "/data/cam_V/VID_0099.mp4",
+   "frame_rate": 30.0,
+   "frames_processed": [
+    0,
+    1,
+    2,
+    150,
+    151,
+    152,
+    300
+   ],
+   "detections": []
+  },
+  {
+   "file": "/data/cam_S/IMG_0001.jpg",
+   "detections": [
+    {
+     "category": "1",
+     "conf": 0.4,
+     "bbox": [
+      0.2,
+      0.2,
+      0.05,
+      0.05
+     ]
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,10 @@
+[workspace]
+members = ["rde-core", "web", "launcher"]
+resolver = "2"
+
+# One version for the product, not three that drift. Releases are tagged v<this>.
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0-or-later"
+repository = "https://github.com/wsyxbcl/RocksBeGone"

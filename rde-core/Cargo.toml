@@ -1,0 +1,13 @@
+[package]
+name = "rde-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "RocksBeGone core: MegaDetector results in, suspicious repeat-detection groups out. Browser/IO-independent so it runs in WASM or natively."
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+# preserve_order keeps the original MD document's field order intact through an
+# export (SPEC §2.5 / §6.1: mask on the original, unknown fields survive).
+serde_json = { version = "1", features = ["preserve_order"] }

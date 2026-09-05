@@ -1,0 +1,11 @@
+/target/
+**/target/
+/web/pkg/
+# Generated test media (web/testdata regenerates it in seconds).
+/web/_test/
+/web/_containers/
+/web/_bench
+/web/_rangetest/
+
+# Deployment notes live with the other VPS runbooks, not in a public repo.
+DEPLOY.md

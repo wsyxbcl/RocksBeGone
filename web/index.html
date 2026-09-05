@@ -1,0 +1,3166 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Caracal RDE (experimental)</title>
+  <style>
+    /* One token set, two themes. Named for the role rather than the colour, so
+       a rule never has to know which theme is active. */
+    :root {
+      --bg: #ffffff;            /* page */
+      --bg-alt: #f4f5f8;        /* recessed areas */
+      --card: #ffffff;          /* raised surfaces */
+      --card-alt: #f4f5f8;
+      --line: #eaebf2;          /* dividers */
+      --field: #e9eaed;         /* control troughs */
+      --hover: rgba(30, 37, 60, 0.05);
+      --scrim: rgba(0, 0, 0, 0.20);
+
+      --ink: #151a29;           /* primary text */
+      --ink-2: #30323c;
+      --muted: #555a6c;
+      --muted-2: #848894;
+      --faint: #aaadb5;
+
+      --accent: #2f6b4f;
+      --on-accent: #ffffff;
+
+      /* Review semantics. Keep/remove must read at a glance on a 92px tile, so
+         they are brighter than the accent rather than tinted toward it — the
+         accent is chrome, these are decisions, and a green accent makes that
+         distinction easy to lose. */
+      --keep: #1f9d6b;
+      --remove: #e5484d;
+      --keep-ring: rgba(31, 157, 107, 0.20);
+
+      /* Detection boxes, one meaning each, shared by the crop and the full frame
+         so the same box is never two colours. */
+      --box-current: #ee6666;   /* the detection being reviewed */
+      --box-keep: #33aaee;      /* an animal RDE leaves alone */
+      --box-other-class: #ffdd44; /* person or vehicle */
+      --box-other-group: #bb88ee; /* a candidate under review elsewhere */
+      --shadow: rgba(16, 16, 16, 0.14);
+      --shadow-strong: rgba(16, 16, 16, 0.22);
+    }
+
+    :root[data-theme="dark"] {
+      --bg: #101010;
+      --bg-alt: #1f2024;
+      --card: #1f2024;
+      --card-alt: #2e2e31;
+      --line: #3a3b40;
+      --field: #414248;
+      --hover: rgba(255, 255, 255, 0.10);
+      --scrim: rgba(0, 0, 0, 0.80);
+
+      --ink: #edeff2;
+      --ink-2: #d5d6da;
+      --muted: #c8c8cc;
+      --muted-2: #9a9aa0;
+      --faint: #7d7e80;
+
+      /* Lifted for dark: #2f6b4f is nearly black against #101010. */
+      --accent: #55b58c;
+      --on-accent: #10261c;
+
+      --keep: #33dd99;
+      --remove: #ee6666;
+      --keep-ring: rgba(51, 221, 153, 0.22);
+
+      --box-current: #ee6666;
+      --box-keep: #33aaee;
+      --box-other-class: #ffdd44;
+      --box-other-group: #bb88ee;
+      --shadow: rgba(0, 0, 0, 0.50);
+      --shadow-strong: rgba(0, 0, 0, 0.65);
+    }
+    * { box-sizing: border-box; }
+    /* App-shell: the page itself never scrolls. Only the review list scrolls,
+       inside its own bounded container, so the browser can scroll it on the
+       compositor. A tall scrolling page + a fixed/sticky element forces
+       main-thread scrolling (a full-viewport repaint every frame), which is the
+       scroll jank under software rendering. */
+    body { margin: 0; font: 15px/1.5 system-ui, sans-serif; color: var(--ink); background: var(--bg);
+      height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+    main { max-width: 1280px; margin: 0 auto; padding: 24px 20px 0; width: 100%; box-sizing: border-box;
+      flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; position: relative; }
+    h1 { font-size: 1.5rem; margin: 0 0 4px; }
+    h2 { font-size: 1.05rem; margin: 0 0 10px; }
+    .lede { color: var(--muted); margin: 0 0 22px; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 18px; margin-bottom: 16px; }
+    .row { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+    .file { display: inline-block; border: 1px dashed var(--accent); color: var(--accent); background: none; font: inherit; border-radius: 8px; padding: 11px 16px; cursor: pointer; font-weight: 600; }
+    .file.disabled, .file:disabled { opacity: 0.4; pointer-events: none; }
+    label.file input { display: none; }
+    /* Small, but there is no way to tell a stale cached worker from a real bug
+       without it — and "hard-reload and check the build" needs something to check. */
+    .build { float: right; font-size: 0.72rem; font-weight: 400; color: var(--muted);
+      letter-spacing: 0.02em; font-variant-numeric: tabular-nums; }
+    .topbar { display: flex; align-items: center; gap: 16px; margin-bottom: 4px; }
+    .brand { display: flex; align-items: baseline; gap: 10px; }
+    .brand h1 { margin: 0; }
+    .topbar-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+    /* Borderless, one size, no glyph fonts — ⌨/☾/↗ render differently on every
+       platform and looked like leftovers. */
+    .icon { width: 30px; height: 30px; padding: 0; display: inline-flex; align-items: center;
+      justify-content: center; cursor: pointer; border: 0; border-radius: 7px;
+      background: none; color: var(--muted-2); text-decoration: none; }
+    .icon:hover { background: var(--hover); color: var(--ink); }
+    .icon svg { width: 17px; height: 17px; fill: none; stroke: currentColor;
+      stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+    .topbar-sep { width: 1px; height: 20px; background: var(--line); margin: 0 2px; }
+
+    /* Shortcuts live in a panel you open, not in the status line where they were
+       read once and then re-read forever. */
+    .sheet { position: absolute; right: 0; top: 46px; z-index: 40; width: 340px;
+      background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+      padding: 12px 14px; box-shadow: 0 12px 32px var(--shadow); }
+    .sheet[hidden] { display: none; }
+    .sheet-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    /* Fixed key column so the labels line up; the old auto column made every row
+       a different width. */
+    .keys { display: grid; grid-template-columns: 68px 1fr; gap: 8px 14px; margin: 0;
+      font-size: 0.85rem; align-items: baseline; }
+    .keys dt { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.78rem;
+      color: var(--ink); background: var(--field); border-radius: 5px; padding: 2px 0;
+      text-align: center; }
+    .keys dd { margin: 0; color: var(--muted); }
+
+    .metrics { display: flex; gap: 22px; margin-top: 14px; flex-wrap: wrap; }
+    /* Which folder is a camera is a property of the dataset, settled once — so it
+       sits with loading, not with the parameters you keep revisiting. */
+    .camera-setup { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+    .camera-setup > label { font-size: 0.82rem; font-weight: 600; }
+    .camera-setup[hidden] { display: none; }
+    .camera-setup .warn { color: var(--accent); font-weight: 600; }
+    /* Its own line, so opening the list expands downward instead of reflowing
+       the select and the summary beside it. */
+    #camera-all { font-size: 0.8rem; color: var(--muted); flex-basis: 100%; }
+    #camera-all summary { cursor: pointer; }
+    #camera-list { max-height: 130px; overflow-y: auto; margin-top: 6px; padding-right: 6px;
+      columns: 3; font-size: 0.76rem; scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+    .precompute { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+    .menu-wrap { position: relative; }
+    .menu { position: absolute; left: 0; top: calc(100% + 6px); z-index: 30; width: 300px;
+      background: var(--card); border: 1px solid var(--line); border-radius: 9px;
+      box-shadow: 0 10px 28px var(--shadow); overflow: hidden; }
+    .menu[hidden] { display: none; }
+    .menu-item { display: block; width: 100%; text-align: left; font: inherit; cursor: pointer;
+      background: none; border: 0; border-bottom: 1px solid var(--line); padding: 10px 12px; }
+    .menu-item:last-child { border-bottom: 0; }
+    .menu-item:hover { background: var(--hover); }
+    .menu-item strong { display: block; color: var(--ink); font-size: 0.86rem; }
+    .menu-item span { display: block; color: var(--muted); font-size: 0.78rem; margin-top: 2px; }
+    /* A "?" rather than a paragraph: the answer is worth having but not worth
+       reading on every load. */
+    .help { width: 18px; height: 18px; padding: 0; border-radius: 999px; cursor: pointer;
+      border: 1px solid var(--line); background: var(--card-alt); color: var(--muted-2);
+      font: inherit; font-size: 0.7rem; line-height: 1; }
+    .help:hover { color: var(--ink); border-color: var(--muted-2); }
+    .sheet.inline { position: absolute; left: 0; top: calc(100% + 8px); width: 360px;
+      font-size: 0.82rem; color: var(--muted); line-height: 1.5; }
+    .precompute { position: relative; }
+    .precompute[hidden] { display: none; }
+    .camera-setup select { font: inherit; font-size: 0.82rem; padding: 3px 6px; max-width: 220px;
+      border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); }
+    /* The card had a large empty right half; put the current parameters there and
+       make the whole block the way in to tuning. */
+    .loadcard { display: flex; gap: 24px; align-items: stretch; }
+    .loadcard-main { flex: 1 1 auto; min-width: 0; }
+    /* Same weight as the two Load buttons — these are the three things you set
+       before reviewing, so they sit at one level rather than one being chrome. */
+    .params { flex: 0 0 268px; text-align: left; font: inherit; cursor: pointer;
+      background: var(--bg-alt); border: 1px solid var(--line); border-radius: 9px;
+      padding: 14px 16px; display: flex; flex-direction: column; }
+    .params:hover { border-color: var(--accent); }
+    .params[hidden] { display: none; }
+    .params-head { display: flex; justify-content: space-between; align-items: baseline;
+      font: inherit; font-weight: 600; color: var(--accent); margin-bottom: 12px; }
+    .params-edit { font-size: 0.82rem; font-weight: 600; color: var(--accent); }
+    .params dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; margin: 0;
+      font-size: 0.84rem; align-content: start; }
+    .params dt { color: var(--muted); }
+    .params dd { margin: 0; color: var(--ink); font-variant-numeric: tabular-nums; justify-self: end; }
+    @media (max-width: 980px) { .loadcard { flex-direction: column; } .params { flex-basis: auto; } }
+    .metric b { display: block; font-size: 1.25rem; }
+    .metric span { color: var(--muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    .hint { color: var(--muted); font-size: 0.85rem; }
+    #error { color: var(--accent); font-weight: 600; }
+    code { background: var(--bg-alt); padding: 1px 5px; border-radius: 4px; }
+
+    .group { margin-bottom: 16px; }
+    .group-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+    .group-head h3 { margin: 0; font-size: 1rem; }
+    .group-head .meta { color: var(--muted); font-size: 0.85rem; }
+    .group-head .actions { margin-left: auto; display: flex; gap: 8px; }
+    button.mini { font: inherit; font-size: 0.82rem; border: 1px solid var(--line); background: var(--card-alt); color: var(--ink); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+    button.mini:hover { border-color: var(--muted); }
+    button.mini.primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+    .group.done { opacity: 0.8; }
+
+    .tiles { display: grid; grid-template-columns: repeat(auto-fill, 92px); gap: 8px; }
+    /* No content-visibility and no transform transition on tiles: content-visibility
+       re-renders elements every time they cross the viewport (trace showed a
+       per-frame Layer/GC/decode churn -> ~700ms main-thread frames under software
+       rendering), and a transform transition can promote each tile to its own
+       layer. Tiles are plain <img> now, so neither is needed. */
+    .tile { width: 92px; height: 92px; border-radius: 7px; overflow: hidden; cursor: pointer; position: relative; border: 2px solid var(--remove); background: var(--bg-alt); }
+    .tile canvas, .tile img.crop { display: block; width: 92px; height: 92px; object-fit: cover; }
+    .tile.remove { opacity: 0.5; }
+    .tile.keep { border-color: var(--keep); opacity: 1; box-shadow: 0 0 0 2px var(--keep-ring); }
+    .tile:hover { border-color: var(--muted); }
+    /* No "never judged" ring. Every crop starts unjudged, so on a first pass it
+       ringed everything and said nothing; stacked on the focus ring and the
+       keep/drop border it was a third outline competing for the same edge. What
+       it was for — seeing which crops are new after a re-cluster — is in the
+       group header, which counts judged against total. */
+
+    /* Buffer bar for the current group's crops (fades out once buffered). */
+    .buffer { display: flex; align-items: center; gap: 10px; margin: 6px 0 14px; opacity: 1; transition: opacity 0.4s 0.3s; }
+    .buffer.done { opacity: 0; }
+    .buffer-track { flex: 1; height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
+    .buffer-bar { height: 100%; width: 0; background: var(--accent); transition: width 0.15s; }
+    .buffer-label { color: var(--muted); font-size: 0.8rem; min-width: 92px; text-align: right; }
+    .tile .badge { position: absolute; top: 3px; right: 3px; font-size: 11px; font-weight: 700; color: var(--on-accent); border-radius: 4px; padding: 1px 5px; }
+    .tile.remove .badge { background: var(--remove); }
+    .tile.keep .badge { background: var(--keep); }
+    .tile .conf { position: absolute; bottom: 0; left: 0; right: 0; font-size: 10px; color: #fff; background: rgba(0,0,0,0.55); text-align: center; }
+    .tilemark { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 10px; color: var(--muted); text-align: center; padding: 3px; line-height: 1.2; }
+    .tile.mark-video { background: var(--card-alt); }
+    .tile.mark-failed { background: var(--field); }
+    button.mini.showmore { display: block; margin: 10px 0 0; }
+
+    /* Tuning panel. Kept dense and flat: it sits above the review list in an
+       app-shell layout, so every row it costs is a row the reviewer loses. */
+    /* Tuning is a mode you enter and leave, repeatedly — so the panel floats over
+       the review rather than pushing it down. Opening it costs the review no space
+       and closing it re-renders nothing. */
+    .stage { position: relative; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+    .tune { padding: 14px 18px; position: absolute; inset: 0 0 auto 0; z-index: 20;
+      max-height: 100%; overflow-y: auto; box-shadow: 0 12px 32px var(--shadow); }
+    .tune-head { display: flex; align-items: baseline; gap: 12px; }
+    .tune-head h2 { margin: 0; font-size: 0.95rem; }
+    .tune-head .mini { margin-left: auto; }
+    .tune-body { display: flex; gap: 28px; margin-top: 12px; flex-wrap: wrap; }
+    .tune-body[hidden] { display: none; }
+    /* Pinned to the bottom of the panel's own scroll area. The panel is taller
+       than the viewport on any laptop screen, and "Preview changes" — the button
+       that actually applies a tuning — was below the fold at every window size
+       tested, reachable only by scrolling the panel to find it. */
+    .tune-foot { display: flex; align-items: center; gap: 10px; margin-top: 14px;
+      padding: 12px 18px 14px; border-top: 1px solid var(--line);
+      position: sticky; bottom: -14px; margin-left: -18px; margin-right: -18px;
+      background: var(--card); }
+    .tune-foot[hidden] { display: none; }
+    .tune-foot .hint { flex: 1; }
+    .expand { margin-top: 10px; }
+    .tune-col { flex: 1 1 320px; min-width: 280px; }
+    /* Name, then one line saying what it does, then the control. Descriptions are
+       always visible: a control whose meaning is hidden behind an icon gets guessed at. */
+    .field { margin-bottom: 16px; }
+    .field-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 2px; }
+    .field-head label { font-size: 0.9rem; font-weight: 600; color: var(--ink); }
+    .field-head b { margin-left: auto; font-variant-numeric: tabular-nums; font-size: 0.85rem; }
+    .field-head input[type=number] { margin-left: auto; }
+    .field-desc { color: var(--muted); font-size: 0.78rem; line-height: 1.45; margin: 0 0 8px; }
+    .field-group { font-size: 0.9rem; margin: 0 0 2px; }
+    .field-row { display: flex; gap: 18px; }
+    .field-row .field { flex: 1 1 0; min-width: 0; }
+    .tune-check { display: flex; align-items: center; gap: 7px; font-size: 0.9rem; font-weight: 600; color: var(--ink); margin-bottom: 2px; }
+    .tune-row { display: flex; align-items: center; gap: 10px; }
+    .tune-row input[type=range] { flex: 1; accent-color: var(--accent); }
+    .tune select { font: inherit; font-size: 0.82rem; padding: 3px 6px; max-width: 190px;
+      border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); }
+    .field-head select { margin-left: auto; }
+    .tune input[type=number] { font: inherit; font-size: 0.85rem; width: 5.5em; padding: 3px 6px;
+      border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); }
+    /* One range component for every slider. Native <input type=range> cannot be
+       styled consistently across browsers and cannot show ticks at all.
+       Proportions follow cursor.com's slider: ticks are dots ON the track rather
+       than lines under it, and the thumb is filled with the accent and ringed in
+       the panel colour, which reads as a handle rather than an outline. */
+    .range { margin: 2px 0 4px; }
+    .range-track { position: relative; height: 22px; touch-action: none; cursor: pointer;
+      -webkit-user-select: none; user-select: none; }
+    .range-track::before { content: ""; position: absolute; left: 0; right: 0; top: 50%;
+      transform: translateY(-50%); height: 6px; border-radius: 999px;
+      border: 1px solid var(--line); background: color-mix(in srgb, var(--line) 55%, transparent); }
+    .range-fill { position: absolute; top: 50%; transform: translateY(-50%); height: 6px;
+      background: var(--accent); border-radius: 999px; }
+    .range-mark { position: absolute; top: 50%; transform: translate(-50%, -50%);
+      width: 5px; height: 5px; border-radius: 999px; border: 1px solid var(--card);
+      background: var(--muted); opacity: 0.55; pointer-events: none; }
+    .range-thumb { position: absolute; top: 50%; transform: translate(-50%, -50%); padding: 0;
+      width: 15px; height: 15px; border-radius: 999px; border: 2px solid var(--card);
+      background: var(--accent); box-shadow: 0 1px 4px var(--shadow-strong); cursor: grab; }
+    .range-thumb:active { cursor: grabbing; }
+    .range-thumb:focus-visible { outline: none;
+      box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--accent); }
+    .range-ticks { position: relative; height: 12px; margin: 0 0 8px; }
+    .range-ticks span { position: absolute; top: 0; transform: translateX(-50%);
+      font-size: 0.68rem; color: var(--muted); white-space: nowrap; }
+
+    /* The IoU table is computed on demand and can run long, so it scrolls after
+       five rows. The occurrence ladder is short and fixed — it shows in full. */
+    .ladder-wrap { max-height: 112px; overflow-y: auto; margin: 10px 0 4px;
+      scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+    .ladder { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin: 10px 0 4px; }
+    .ladder-wrap .ladder { margin: 0; } /* the wrapper already carries the spacing */
+    .ladder td { padding: 2px 6px 2px 0; color: var(--muted); white-space: nowrap; }
+    .ladder td.n { text-align: right; font-variant-numeric: tabular-nums; }
+    .ladder tr { cursor: pointer; }
+    .ladder tr.head { cursor: default; }
+    .ladder tr.head td { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em;
+      color: var(--muted); padding-bottom: 3px; }
+    .ladder tr.head:hover td { color: var(--muted); }
+    .ladder tr:hover td { color: var(--ink); }
+    .ladder tr.at td { color: var(--ink); font-weight: 600; }
+    /* Bar length is the review cost at that threshold — the shape you are choosing a cut on. */
+    .ladder .bar { width: 100%; }
+    .ladder .bar i { display: block; height: 6px; background: var(--line); border-radius: 3px; }
+    .ladder tr.at .bar i { background: var(--accent); }
+
+    .workspace { display: flex; gap: 20px; align-items: stretch; flex: 1 1 auto; min-height: 0; margin-top: 0; }
+    .review { flex: 1 1 auto; min-width: 0; overflow-y: auto; padding: 2px 6px 24px 0; }
+    .preview { flex: 0 0 400px; overflow-y: auto; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+    .preview h2 { font-size: 0.95rem; margin: 0 0 10px; }
+    .mark { width: 11px; height: 11px; vertical-align: -1px; fill: currentColor; }
+    .legend { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-wrap: wrap;
+      gap: 4px 14px; font-size: 0.74rem; color: var(--muted); }
+    .legend li { display: flex; align-items: center; gap: 5px; }
+    .legend i { width: 9px; height: 9px; border-radius: 2px; flex: none; }
+    .preview-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+    .preview-head h2 { margin: 0 0 10px; }
+    /* "f" was a keystroke nobody could discover. The switch is the discoverable
+       half; the key stays for people who have found it. */
+    .frametoggle { font-size: 0.78rem; color: var(--muted); display: inline-flex;
+      align-items: center; gap: 5px; cursor: pointer; user-select: none; }
+    .preview canvas { width: 100%; height: auto; max-height: 62vh; object-fit: contain; border-radius: 6px; background: var(--bg-alt); display: block; }
+    .preview-meta { color: var(--muted); font-size: 0.82rem; margin: 10px 0 0; word-break: break-all; white-space: pre-line; }
+    .preview-meta b { color: var(--ink); }
+    @media (max-width: 980px) {
+      /* Narrow: fall back to a normally-scrolling page (stack review over preview). */
+      body { height: auto; overflow: auto; display: block; }
+      main { height: auto; min-height: 0; display: block; padding-bottom: 24px; }
+      .workspace { flex-direction: column; min-height: 0; }
+      .review { overflow: visible; }
+      .preview { overflow: visible; flex-basis: auto; width: 100%; }
+      .mark { width: 11px; height: 11px; vertical-align: -1px; fill: currentColor; }
+    .legend { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-wrap: wrap;
+      gap: 4px 14px; font-size: 0.74rem; color: var(--muted); }
+    .legend li { display: flex; align-items: center; gap: 5px; }
+    .legend i { width: 9px; height: 9px; border-radius: 2px; flex: none; }
+    .preview-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+    .preview-head h2 { margin: 0 0 10px; }
+    /* "f" was a keystroke nobody could discover. The switch is the discoverable
+       half; the key stays for people who have found it. */
+    .frametoggle { font-size: 0.78rem; color: var(--muted); display: inline-flex;
+      align-items: center; gap: 5px; cursor: pointer; user-select: none; }
+    .preview canvas { max-height: none; }
+    }
+
+    .exportbar { flex: 0 0 auto; background: var(--card); border-top: 1px solid var(--line); padding: 12px 20px; display: flex; gap: 16px; align-items: center; justify-content: center; }
+    .exportbar button { font: inherit; font-weight: 600; background: var(--accent); color: var(--on-accent); border: none; border-radius: 8px; padding: 10px 18px; cursor: pointer; }
+    .exportbar button:disabled { opacity: 0.4; cursor: default; }
+    .exportbar .summary { color: var(--muted); font-size: 0.9rem; }
+    .exportbar .exportopt { color: var(--muted); font-size: 0.82rem; display: flex; align-items: center; gap: 5px; cursor: pointer; }
+    .file-mini { font: inherit; font-size: 0.82rem; border: 1px solid var(--line); background: var(--card-alt); color: var(--ink);
+      border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+    .file-mini:hover { border-color: var(--muted); }
+    .placeholder { color: var(--muted); font-size: 0.85rem; padding: 14px 0; }
+  </style>
+</head>
+<body>
+  <main>
+    <header class="topbar">
+      <div class="brand"><h1>RocksBeGone</h1></div>
+      <div class="topbar-actions">
+        <button class="mini" id="session-save" disabled>Save session</button>
+        <label class="mini file-mini">Load session<input id="session-input" type="file" accept=".json,application/json" hidden /></label>
+        <span class="topbar-sep"></span>
+        <button class="icon" id="shortcuts-open" title="Keyboard shortcuts" aria-label="Keyboard shortcuts">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 9.5h1M9 9.5h1M12 9.5h1M15 9.5h1M18 9.5h0.5M6 12.5h1M9 12.5h1M12 12.5h1M15 12.5h1M18 12.5h0.5M8 15.5h8"/></svg>
+        </button>
+        <button class="icon" id="theme-toggle" title="Light or dark" aria-label="Switch between light and dark"></button>
+        <a class="icon" href="https://github.com/wsyxbcl/RocksBeGone" target="_blank" rel="noopener" title="Source on GitHub" aria-label="Source on GitHub">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.9a3.4 3.4 0 0 0-.9-2.6c3-.3 6.2-1.5 6.2-6.7A5.2 5.2 0 0 0 19.9 5a4.9 4.9 0 0 0-.1-3.6s-1.1-.3-3.7 1.4a12.6 12.6 0 0 0-6.6 0C6.9 1.1 5.8 1.4 5.8 1.4A4.9 4.9 0 0 0 5.7 5a5.2 5.2 0 0 0-1.4 3.6c0 5.2 3.2 6.4 6.2 6.7a3.4 3.4 0 0 0-.9 2.6V22"/></svg>
+        </a>
+      </div>
+    </header>
+    <p class="lede">Review repeat detections in MegaDetector results. Everything runs in your browser — your results and media never leave this machine.</p>
+
+    <div class="sheet" id="shortcuts" hidden>
+      <div class="sheet-head"><strong>Keyboard</strong><button class="icon" id="shortcuts-close" aria-label="Close">×</button></div>
+      <dl class="keys">
+        <dt>← →</dt><dd>previous / next group</dd>
+        <dt>Enter</dt><dd>done with this group, go to the next unreviewed</dd>
+        <dt>k</dt><dd>keep every member of this group</dd>
+        <dt>d</dt><dd>remove every member of this group</dd>
+        <dt>f</dt><dd>whole frame ⇄ the exact frame this detection came from</dd>
+      </dl>
+    </div>
+
+    <div class="card loadcard">
+      <div class="loadcard-main">
+      <div class="row">
+        <label class="file">1 · Load MegaDetector .json<input id="json-input" type="file" accept=".json,application/json" /></label>
+        <button class="file disabled" id="folder-fsa">2 · Load image folder</button>
+        <!-- Fallback picker: hidden, triggered programmatically when the File System Access picker is unavailable or blocked (user-activation). -->
+        <input id="folder-input" type="file" webkitdirectory directory multiple hidden />
+      </div>
+      <p class="hint" id="status">Load a MegaDetector results .json to begin.</p>
+      <div class="metrics" id="metrics" hidden>
+        <div class="metric"><b id="m-images">–</b><span>media</span></div>
+        <div class="metric"><b id="m-dets">–</b><span>detections</span></div>
+        <div class="metric"><b id="m-groups">–</b><span>candidate groups</span></div>
+        <div class="metric"><b id="m-candidates">–</b><span>candidates</span></div>
+        <div class="metric"><b id="m-matched">–</b><span>media matched</span></div>
+        <div class="metric"><b id="m-reviewed">–</b><span>reviewed</span></div>
+      </div>
+      <div class="camera-setup" id="camera-setup" hidden>
+        <label for="opt-camlevel">Camera folder</label>
+        <select id="opt-camlevel"></select>
+        <span class="hint" id="camera-summary"></span>
+        <details id="camera-all"><summary>show all</summary><div id="camera-list"></div></details>
+      </div>
+      <div class="precompute" id="precompute" hidden>
+        <div class="menu-wrap">
+          <button class="mini" id="precompute-open" aria-expanded="false">Precompute crops…</button>
+          <div class="menu" id="precompute-menu" hidden>
+            <button class="menu-item" id="precompute-exemplars">
+              <strong>Exemplars only</strong>
+              <span>The few crops each group shows. Every group opens instantly.</span>
+            </button>
+            <button class="menu-item" id="precompute-all">
+              <strong>Every member</strong>
+              <span>Also the crops behind “Show all”. Slower, and rarely needed.</span>
+            </button>
+          </div>
+        </div>
+        <span class="hint" id="precompute-status">Decode crops ahead of time</span>
+        <button class="help" id="precompute-help" aria-label="When to use this" title="When to use this">?</button>
+        <div class="sheet inline" id="precompute-why" hidden>
+          Normally each group decodes as you reach it. Precomputing does that work
+          up front instead: worth it if crops are slow to appear, or if you would
+          rather wait once and then move through without any pause.
+        </div>
+      </div>
+      <p id="error"></p>
+      </div>
+      <button class="params" id="tune-open" hidden aria-expanded="false">
+        <span class="params-head">Parameters<span class="params-edit"></span></span>
+        <dl id="params-list"></dl>
+      </button>
+    </div>
+
+    <div class="stage">
+    <div class="card tune" id="tune" hidden>
+      <div class="tune-head">
+        <h2>Tune candidates</h2>
+        <span class="hint" id="tune-note">Changes are previewed before they touch the review.</span>
+        <button class="mini" id="tune-collapse">Close</button>
+      </div>
+      <div class="tune-body" id="tune-body">
+        <div class="tune-col">
+          <div class="range field" id="occ-range">
+            <div class="field-head"><label>Occurrence</label><b class="range-value"></b></div>
+            <p class="field-desc">How many separate files a box must appear in. Several frames of one clip count once.</p>
+            <div class="range-track"><div class="range-fill"></div>
+              <button class="range-thumb v" aria-label="occurrence threshold"></button></div>
+            <div class="range-ticks"></div>
+          </div>
+          <p class="field-desc">Instant — this only filters groups already found.</p>
+          <table class="ladder"><tbody id="ladder"></tbody></table>
+        </div>
+
+        <div class="tune-col">
+          <h3 class="field-group">Clustering</h3>
+          <p class="field-desc">Decides which detections become candidates. Changing these regroups everything.</p>
+
+          <div class="range field" id="dual-conf">
+            <div class="field-head"><label>Confidence band</label><b class="range-value"></b></div>
+            <p class="field-desc">Only detections MegaDetector scored in this range are considered.</p>
+            <div class="range-track"><div class="range-fill"></div>
+              <button class="range-thumb lo" aria-label="minimum confidence"></button>
+              <button class="range-thumb hi" aria-label="maximum confidence"></button></div>
+            <div class="range-ticks"></div>
+          </div>
+
+          <div class="range field" id="dual-size">
+            <div class="field-head"><label>Box area band</label><b class="range-value"></b></div>
+            <p class="field-desc">Box size as a share of the frame. A repeated rock or branch is usually small.</p>
+            <div class="range-track"><div class="range-fill"></div>
+              <button class="range-thumb lo" aria-label="minimum box area"></button>
+              <button class="range-thumb hi" aria-label="maximum box area"></button></div>
+            <div class="range-ticks"></div>
+          </div>
+
+          <div class="range field" id="opt-iou">
+            <div class="field-head"><label>Same-box IoU</label><b class="range-value"></b></div>
+            <p class="field-desc">How much two boxes must overlap to count as the same spot.</p>
+            <div class="range-track"><div class="range-fill"></div>
+              <button class="range-thumb v" aria-label="same-box IoU"></button></div>
+            <div class="range-ticks"></div>
+            <button class="mini" id="iou-compute">Compute IoU sensitivity</button>
+            <div class="ladder-wrap" id="iou-table"></div>
+          </div>
+
+          <div class="field">
+            <label class="tune-check"><input type="checkbox" id="opt-agnostic" /> Ignore category</label>
+            <p class="field-desc">Compare an animal box against a person or vehicle box, not only its own class.</p>
+          </div>
+
+        </div>
+      </div>
+      <div class="tune-foot">
+        <span class="hint" id="tune-impact"></span>
+        <button class="mini" id="tune-reset">Reset to defaults</button>
+        <button class="mini primary" id="tune-preview">Preview changes</button>
+        <button class="mini primary" id="tune-confirm" hidden>Apply to review</button>
+        <button class="mini" id="tune-discard" hidden>Discard</button>
+      </div>
+    </div>
+
+    <div class="workspace">
+      <div class="review"><div id="results"></div></div>
+      <aside class="preview">
+        <div class="preview-head">
+          <h2>In context</h2>
+          <label class="frametoggle" title="Video only. The whole clip's first frame, or the frame this detection was found on (f)">
+            <input type="checkbox" id="exact-frame" /> exact frame
+          </label>
+        </div>
+        <canvas id="preview-canvas" width="400" height="220"></canvas>
+        <p class="preview-meta" id="preview-meta">Hover a tile to see it in the full frame, with the detection boxed.</p>
+        <ul class="legend">
+          <li><i style="background:var(--box-current)"></i>this detection</li>
+          <li><i style="background:var(--box-keep)"></i>animal RDE keeps</li>
+          <li><i style="background:var(--box-other-class)"></i>person / vehicle</li>
+          <li><i style="background:var(--box-other-group)"></i>candidate in another group</li>
+        </ul>
+      </aside>
+    </div>
+    </div>
+  </main>
+
+  <div class="exportbar">
+    <span class="summary" id="export-summary">No document loaded.</span>
+    <label class="exportopt" title="Candidates you never looked at are removed by default, as upstream RDE does. Untick to remove only what you judged."><input type="checkbox" id="export-unreviewed" checked /> include unreviewed</label>
+    <button id="export-btn" disabled>Export filtered .json</button>
+  </div>
+
+  <script type="module">
+    const $ = (id) => document.getElementById(id);
+    const status = $("status");
+    const errorEl = $("error");
+    const previewCanvas = $("preview-canvas");
+    const previewMeta = $("preview-meta");
+    const TILE = 92;
+    // Parallel source decodes. Measured on a real 24-clip group off an HDD:
+    // throughput is FLAT from 2 to 6 (the disk saturates at ~242 MB/s either way),
+    // but 6 inflates per-clip latency 6.6x (200 -> 1331 ms) and holds six ~50 MB
+    // reads in flight. 3 keeps the disk busy without either cost.
+    // Overridable as ?concurrency=N, which also turns the tuner off.
+    //
+    // That measurement was one machine off one disk; it does not transfer. The
+    // background tier now finds its own level per device (see the tuner below),
+    // and this stays only as the starting point and the interactive ceiling.
+    const MANUAL_CONCURRENCY = Number(new URLSearchParams(location.search).get("concurrency")) || 0;
+    // Systems ablation: ?ablate=wholefile,linear,groupcrops,software forces a
+    // component off so its contribution can be measured instead of assumed. Each
+    // of these was added on the strength of a measurement; this is how we find
+    // out which ones still earn their keep, and which can simply be deleted.
+    // Pin ?concurrency=N alongside it — comparing runs at different concurrency
+    // is what made two of our own benchmarks incomparable.
+    const ABLATE = (new URLSearchParams(location.search).get("ablate") || "")
+      .split(",").map((s) => s.trim()).filter(Boolean);
+    const DECODE_CONCURRENCY = MANUAL_CONCURRENCY || 3;
+    const PAGE = 200;             // tiles rendered per group at a time (a group can have thousands)
+
+    // ---- Worker RPC (SPEC §5.1): all wasm work runs off the UI thread. --------
+    // Module workers cache hard; bump BUILD on any *-worker.js change so a plain
+    // reload picks it up (no need to purge cache manually while iterating).
+    const BUILD = "2026-09-06i";
+
+    // Canvas cannot read CSS variables, so anything drawn has to look them up.
+    const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+    // Theme: follow the system unless the reviewer has said otherwise. Stored,
+    // because a preference that resets every reload is not a preference.
+    const THEME_KEY = "rocksbegone.theme";
+    function applyTheme(theme) {
+      document.documentElement.dataset.theme = theme;
+      $("theme-toggle").innerHTML = theme === "dark"
+        ? '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.2 5.2l1.4 1.4M17.4 17.4l1.4 1.4M18.8 5.2l-1.4 1.4M6.6 17.4l-1.4 1.4"/></svg>'
+        : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 14.5A8.5 8.5 0 1 1 9.5 3.5a6.8 6.8 0 0 0 11 11z"/></svg>';
+      try { localStorage.setItem(THEME_KEY, theme); } catch { /* private mode */ }
+    }
+    applyTheme(
+      (() => {
+        try { return localStorage.getItem(THEME_KEY); } catch { return null; }
+      })() || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"),
+    );
+    $("theme-toggle").addEventListener("click", () => {
+      applyTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark");
+      if (state.groups.length) renderCurrent(); // crops are drawn, not styled
+    });
+
+    const showShortcuts = (open) => { $("shortcuts").hidden = !open; };
+    $("shortcuts-open").addEventListener("click", () => showShortcuts($("shortcuts").hidden));
+    $("shortcuts-close").addEventListener("click", () => showShortcuts(false));
+    const worker = new Worker(`./rde-worker.js?v=${BUILD}`, { type: "module" });
+    let nextId = 0;
+    const pending = new Map();
+    worker.addEventListener("message", (event) => {
+      const { id, ok, result, error } = event.data;
+      const slot = pending.get(id);
+      if (!slot) return;
+      pending.delete(id);
+      ok ? slot.resolve(result) : slot.reject(new Error(error));
+    });
+    function call(type, payload = {}, transfer = []) {
+      const id = ++nextId;
+      return new Promise((resolve, reject) => {
+        pending.set(id, { resolve, reject });
+        worker.postMessage({ id, type, ...payload }, transfer);
+      });
+    }
+
+    // ---- Profiling: surface main-thread blocks so we can see UI freezes ------
+    try {
+      new PerformanceObserver((list) => {
+        for (const e of list.getEntries()) console.warn(`[rde] long task ${Math.round(e.duration)} ms — main thread blocked`);
+      }).observe({ type: "longtask", buffered: true });
+    } catch { /* longtask not supported */ }
+
+    // ---- Media Worker (SPEC §5.1): decode + crop off the main thread ---------
+    function spawnMediaWorker() {
+      const worker = new Worker(`./media-worker.js?v=${BUILD}`, { type: "module" });
+      const pending = new Map();
+      let nextId = 0;
+      worker.addEventListener("message", (event) => {
+        const resolve = pending.get(event.data.id);
+        if (!resolve) return;
+        pending.delete(event.data.id);
+        resolve(event.data); // callers read .ok / .results / .blob / .bitmap / .offset
+      });
+      return (message) => new Promise((resolve) => {
+        const id = ++nextId;
+        pending.set(id, resolve);
+        worker.postMessage({ ...message, id });
+      });
+    }
+    // Two workers, because a worker handles one message at a time. Hover previews
+    // used to queue behind the whole prefetch backlog — with a group taking 30 s
+    // to buffer, the "in context" panel simply looked broken. Previews now jump
+    // ahead on their own thread.
+    const cropWorker = spawnMediaWorker();
+    const previewWorker = spawnMediaWorker();
+
+    // A "source" is { file } (webkitdirectory fallback) or { path } (File System
+    // Access — the worker resolves it against the retained directory handle).
+    // Returns { bitmap, width, height } or null.
+    function mediaDecode(kind, src, extra) {
+      const t = performance.now();
+      // Downscale in the worker: shipping a 5 MP bitmap across just to draw it at
+      // 720px wastes both the transfer and a main-thread resize.
+      return previewWorker({ kind, ...src, maxWidth: PREVIEW_W, ...extra }).then((d) => {
+        if (d.ok) { recordDecode(performance.now() - t); return { bitmap: d.bitmap, width: d.width, height: d.height, blob: d.blob }; }
+        return null;
+      });
+    }
+    // Decode one source once and get all its crops: items = [{ key, bbox }].
+    // Returns [{ key, blob }] or null. One disk read for the whole batch.
+    function mediaCropBatch(src, items) {
+      const t = performance.now();
+      return cropWorker({ kind: "cropBatch", ...src, items, ablate: ABLATE }).then((d) => {
+        if (!d.ok) return null;
+        const rpcMs = performance.now() - t;
+        recordDecode(rpcMs);
+        const name = src.name.split(/[\\/]/).pop();
+        if (d.stats) bench.record(name, d.stats, rpcMs, items.length);
+        if (d.stats?.failure) {
+          // Two failures actually happen, and they need different advice.
+          const hint = /codec not supported/.test(d.stats.failure)
+            ? "this browser has no decoder for it — pre-extract frames with ffmpeg (SPEC §7)"
+            : "damaged clip? ffmpeg tolerates what WebCodecs rejects";
+          console.warn(`[rde] ${name}: ${d.results.length}/${items.length} crops` +
+            ` — ${d.stats.failure} (${hint})`);
+        }
+        return { results: d.results, failure: d.stats?.failure || null };
+      });
+    }
+
+    /// What to write on a tile that never arrived. A warning triangle on every
+    /// clip tells a reviewer with HEVC footage nothing; the codec name at least
+    /// says why, and points at the pre-extraction escape hatch.
+    function decodeFailLabel(failure) {
+      const codec = /codec not supported: ([\w.]+)/.exec(failure || "")?.[1]?.toLowerCase();
+      // A bare warning triangle told the reviewer nothing. "unreadable" at least
+      // separates a broken file from a codec this browser simply does not have.
+      if (!codec) return "unreadable";
+      return codec.startsWith("hvc") || codec.startsWith("hev") ? "no hevc" : "no decoder";
+    }
+    // Hand the picked directory handle to the workers; each detects the path
+    // offset from sample media paths. Returns { ok, offset } / { ok:false, error }.
+    async function mediaSetRoot(rootHandle, samplePaths) {
+      const [crop] = await Promise.all([
+        cropWorker({ kind: "setRoot", rootHandle, samplePaths }),
+        previewWorker({ kind: "setRoot", rootHandle, samplePaths }),
+      ]);
+      return crop;
+    }
+
+    // ---- Benchmark instrumentation ------------------------------------------
+    // Per-source phase timings, so a slow group can be attributed to I/O vs
+    // demux vs decode vs thumbnail encode vs browser image-decode rather than
+    // guessed at. Collect-only: it changes no behaviour. `__rdeBench.summary()`
+    // in the console prints the table.
+    const bench = {
+      rows: [],
+      groups: [],
+      record(name, stats, rpcMs, crops) {
+        this.rows.push({ name, crops, rpcMs: +rpcMs.toFixed(1), ...stats });
+      },
+      reset() { this.rows = []; this.groups = []; },
+    };
+
+    const pct = (xs, p) => {
+      if (!xs.length) return 0;
+      const s = xs.slice().sort((a, b) => a - b);
+      return +s[Math.min(s.length - 1, Math.floor(s.length * p))].toFixed(1);
+    };
+    const sum = (xs) => xs.reduce((a, b) => a + b, 0);
+    const mb = (bytes) => +(bytes / 1e6).toFixed(1);
+
+    window.__rdeBench = {
+      get rows() { return bench.rows; },
+      get groups() { return bench.groups; },
+      reset: () => bench.reset(),
+      get concurrency() {
+        const byLimit = Object.fromEntries(Object.entries(tuner.samples)
+          .map(([limit, rates]) => [limit, { windows: rates.length, medianRate: +median(rates).toFixed(1) }]));
+        return { background: bgLimit, cap: CONCURRENCY_CAP, byLimit, windows: tuner.history };
+      },
+      get cache() { return { crops: cropCache.size, mb: +(cropCache.bytes / 1e6).toFixed(1) }; },
+      /** Drop cached crops down to `mb`, already-judged ones first. Returns MB freed. */
+      evict: (mb = 0) => +(cropCache.evictTo(mb * 1e6) / 1e6).toFixed(1),
+      /** Phase table + totals. `kind` filters to "video" / "image". */
+      summary(kind) {
+        const rows = kind ? bench.rows.filter((r) => r.kind === kind) : bench.rows;
+        if (!rows.length) return "no samples yet — open a group first";
+        const video = rows.filter((r) => r.kind === "video");
+        const phase = (key) => {
+          const xs = rows.map((r) => r[key] || 0);
+          return { total: +sum(xs).toFixed(0), median: pct(xs, 0.5), p90: pct(xs, 0.9) };
+        };
+        console.log(`concurrency=${DECODE_CONCURRENCY}  sources=${rows.length}  crops=${sum(rows.map((r) => r.crops))}` +
+          `  cache=${cropCache.size} crops / ${(cropCache.bytes / 1e6).toFixed(1)} MB`);
+        console.table(Object.fromEntries(
+          ["readMs", "demuxMs", "configMs", "planMs", "decodeMs", "onFrameMs", "drawMs", "encodeMs", "totalMs", "rpcMs"]
+            .map((k) => [k, phase(k)]),
+        ));
+        if (video.length) {
+          console.table({
+            bytesReadMB: { total: mb(sum(video.map((r) => r.bytesRead))), median: mb(pct(video.map((r) => r.bytesRead), 0.5)) },
+            framesDecoded: { total: sum(video.map((r) => r.decoded)), median: pct(video.map((r) => r.decoded), 0.5) },
+            framesInClip: { total: sum(video.map((r) => r.frames)), median: pct(video.map((r) => r.frames), 0.5) },
+            coverage: { total: +(sum(video.map((r) => r.planned)) / sum(video.map((r) => r.frames))).toFixed(3), median: pct(video.map((r) => r.coverage), 0.5) },
+            ranges: { total: sum(video.map((r) => r.ranges)), median: pct(video.map((r) => r.ranges), 0.5) },
+            linearFallbacks: { total: video.filter((r) => r.linear).length },
+            thumbBytes: { total: sum(rows.map((r) => r.thumbBytes || 0)), median: pct(rows.map((r) => r.thumbBytes || 0), 0.5) },
+          });
+          const codecs = {};
+          for (const r of video) codecs[`${r.codec} ${r.width}x${r.height} ${r.durationS}s`] = (codecs[`${r.codec} ${r.width}x${r.height} ${r.durationS}s`] || 0) + 1;
+          console.log("clips:", codecs);
+          const accel = {};
+          for (const r of video) accel[r.accel || "unknown"] = (accel[r.accel || "unknown"] || 0) + 1;
+          console.log("decoder chosen per clip:", accel);
+          // The measurement behind that choice, per codec.
+          const probes = {};
+          for (const r of video) {
+            if (!r.probe) continue;
+            const p = r.probe;
+            probes[r.codec + " " + r.width + "x" + r.height] =
+              `hardware ${p.hwMs === null ? "unavailable" : Math.round(p.hwMs) + " ms"}` +
+              ` vs software ${p.swMs === null ? "unavailable" : Math.round(p.swMs) + " ms"}` +
+              ` over ${p.frames} frames -> ${p.mode}` + (p.failures ? ` (${p.failures} hw failures)` : "");
+          }
+          console.log("decode probe:", probes);
+        }
+        console.log("groups (wall clock):", bench.groups);
+        return `${rows.length} sources`;
+      },
+      /** Everything in one object, for pasting into a report. `copy(__rdeBench.dump())` */
+      dump() {
+        const rows = bench.rows;
+        const med = (k) => pct(rows.map((r) => r[k] || 0), 0.5);
+        return JSON.stringify({
+          build: BUILD,
+          concurrency: DECODE_CONCURRENCY,
+          backgroundConcurrency: bgLimit,
+          ablated: ABLATE,
+          agent: navigator.userAgent,
+          hardwareConcurrency: navigator.hardwareConcurrency,
+          deviceMemoryGB: navigator.deviceMemory,
+          document: state.fileName,
+          groups: bench.groups,
+          sources: rows.length,
+          crops: sum(rows.map((r) => r.crops || 0)),
+          cache: { crops: cropCache.size, mb: +(cropCache.bytes / 1e6).toFixed(1) },
+          medians: Object.fromEntries(
+            ["readMs", "demuxMs", "decodeMs", "onFrameMs", "drawMs", "encodeMs", "totalMs", "rpcMs", "thumbBytes"]
+              .map((k) => [k, med(k)]),
+          ),
+          rows,
+        }, null, 1);
+      },
+      /** Thumbnail-format shootout on a REAL frame from the focused tile. */
+      async formats(iterations = 20) {
+        const inst = currentGrid?.[focusIndex]?._instance || currentGroup()?.instances?.[0];
+        if (!inst) return "open a group first";
+        const src = sourceOf(inst.det_ref.image_index);
+        if (!src) return "load the folder first";
+        const isVideo = VIDEO_RE.test(src.name);
+        const res = await mediaDecode("frame", src, isVideo ? { frameNumber: inst.frame_number } : null);
+        if (!res?.bitmap) return "could not decode a frame to test with";
+        const canvas = new OffscreenCanvas(TILE, TILE);
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(res.bitmap, 0, 0, TILE, TILE);
+        res.bitmap.close();
+        const out = {};
+        for (const [type, quality] of [["image/png"], ["image/jpeg", 0.85], ["image/webp", 0.85], ["image/avif", 0.85]]) {
+          try {
+            const probe = await canvas.convertToBlob({ type, quality });
+            if (probe.type !== type) { out[type] = { supported: false }; continue; } // silently fell back to png
+            let encode = 0, blob = probe;
+            for (let i = 0; i < iterations; i++) {
+              const t = performance.now();
+              blob = await canvas.convertToBlob({ type, quality });
+              encode += performance.now() - t;
+            }
+            // …and what it costs the main thread to display.
+            let display = 0;
+            for (let i = 0; i < iterations; i++) {
+              const url = URL.createObjectURL(blob);
+              const img = new Image();
+              img.src = url;
+              const t = performance.now();
+              await img.decode();
+              display += performance.now() - t;
+              URL.revokeObjectURL(url);
+            }
+            out[type] = { supported: true, bytes: blob.size, encodeMs: +(encode / iterations).toFixed(2), displayMs: +(display / iterations).toFixed(2) };
+          } catch { out[type] = { supported: false }; }
+        }
+        console.log(`${isVideo ? "video frame" : "image"} ${TILE}x${TILE}, mean of ${iterations} iterations`);
+        console.table(out);
+        return out;
+      },
+    };
+
+    // ---- State ---------------------------------------------------------------
+    const state = {
+      fileName: null,
+      options: null,
+      allGroups: [],                   // clustering at MIN_THRESHOLD; the threshold is a view over it
+      groups: [],                      // allGroups filtered to state.threshold — what is reviewed
+      threshold: 20,                   // occurrence_threshold, applied client-side (overwritten from the wasm default on load)
+      decisions: new Map(),            // "img:det" -> { decision, at, round } — durable, authoritative
+      preview: null,                   // a clustering proposed but not yet applied
+      round: 1,                        // parameterization round, provenance only
+      rounds: [],                      // history of parameterizations, for statistics
+      imageFiles: null,                // image_index -> json `file` path (also the FSA lookup key)
+      frameRateByImageIndex: new Map(),// image_index -> fps, video entries only (SPEC §2.2)
+      instancesByMedia: new Map(),     // image_index -> all candidate instances on that media
+      groupByDet: new Map(),           // "img:det" -> its group, so the preview can tell candidates from survivors
+      categoryNames: {},               // detection_categories: "1" -> "animal"
+      fileByImageIndex: new Map(),     // image_index -> picked File (webkitdirectory fallback only)
+      folderLoaded: false,
+      folderMode: "files",             // "files" (webkitdirectory) | "fsa" (directory handle, lazy resolve)
+    };
+
+    // A source descriptor for a media, per folder mode. In "fsa" mode we never
+    // build a file index: the worker resolves the json path against the handle.
+    // `frameRate` is set only for video entries — with the instances' own
+    // `frame_number` it's everything the pixel provider needs to seek (SPEC §7).
+    function sourceOf(imageIndex) {
+      const frameRate = state.frameRateByImageIndex.get(imageIndex);
+      const path = state.imageFiles?.[imageIndex];
+      if (state.folderMode === "fsa") return path ? { path, name: path, frameRate } : null;
+      const file = state.fileByImageIndex.get(imageIndex);
+      return file ? { file, name: file.name, frameRate } : null;
+    }
+
+    // ---- 1. Load MD json -----------------------------------------------------
+    $("json-input").addEventListener("change", async (event) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      resetForNewJson(file.name);
+      status.textContent = `Parsing ${file.name} (${(file.size / 1e6).toFixed(1)} MB)…`;
+      try {
+        const buffer = await file.arrayBuffer();
+        const tParse = performance.now();
+        const loaded = await call("load", { bytes: buffer }, [buffer]);
+        console.log(`[rde] parse: ${Math.round(performance.now() - tParse)} ms (${loaded.imageCount} media, ${loaded.totalDetections} detections)`);
+        state.options = JSON.parse(loaded.defaultOptions);
+        DEFAULT_OPTIONS = JSON.parse(loaded.defaultOptions);
+        const thresholdOverride = Number(new URLSearchParams(location.search).get("threshold"));
+        state.threshold = thresholdOverride >= MIN_THRESHOLD
+          ? thresholdOverride
+          : state.options.occurrence_threshold;
+        state.imageFiles = loaded.imageFiles ? JSON.parse(loaded.imageFiles) : null;
+        state.frameRateByImageIndex = new Map(JSON.parse(loaded.videoFrameRates || "[]"));
+        state.categoryNames = JSON.parse(loaded.categoryNames || "{}");
+        status.textContent = `Clustering ${loaded.totalDetections.toLocaleString()} detections…`;
+        await recluster();
+
+        $("m-images").textContent = loaded.imageCount.toLocaleString();
+        $("m-dets").textContent = loaded.totalDetections.toLocaleString();
+        $("m-matched").textContent = "0";
+        $("metrics").hidden = false;
+        $("tune-open").hidden = false;
+        // Camera folder is dataset setup, not tuning: it is decided here, once,
+        // against the real folder names. The tuning panel stays shut — the
+        // parameter list in this card is the way in when someone wants it.
+        fillCameraLevels();
+        syncTuningControls();
+        syncTuneToggle();
+        renderStats();
+        $("folder-fsa").classList.remove("disabled");
+        $("folder-fsa").disabled = false;
+        status.textContent = `Loaded ${file.name}. ${state.groups.length.toLocaleString()} candidate group(s). Load the image folder to review crops.`;
+        goToGroup(0);
+        updateExportBar();
+      } catch (err) {
+        showError(err);
+      }
+    });
+
+    // Clustering never depends on `occurrence_threshold` — it is applied as a
+    // final filter on distinct-media count (pinned by a native test,
+    // `threshold_is_only_a_final_filter`). So cluster ONCE at the lowest
+    // meaningful value and treat the threshold as a view over that result: the
+    // reviewer can scrub it with no recompute, and only the parameters that
+    // decide which detections enter clustering cost a re-run.
+    const MIN_THRESHOLD = 2;
+    // The occurrence scale. These are the tick marks, the ladder rows and the only
+    // selectable values — one list, so the ladder never has to invent a row for an
+    // off-scale choice.
+    const OCCURRENCE_STEPS = [2, 3, 5, 10, 15, 20, 30, 50, 75, 100, 150, 250];
+    const occurrenceSteps = () => {
+      const largest = state.allGroups.reduce((m, g) => Math.max(m, g.media_count), MIN_THRESHOLD);
+      const steps = OCCURRENCE_STEPS.filter((t) => t <= Math.max(largest, MIN_THRESHOLD));
+      return steps.length ? steps : [MIN_THRESHOLD];
+    };
+    let DEFAULT_OPTIONS = null; // as the wasm reports them, for "reset"
+
+    async function recluster() {
+      const options = { ...state.options, occurrence_threshold: MIN_THRESHOLD };
+      const t = performance.now();
+      state.allGroups = JSON.parse((await call("find", { options: JSON.stringify(options) })).groups);
+      console.log(`[rde] cluster: ${Math.round(performance.now() - t)} ms` +
+        ` (${state.allGroups.length} candidate groups at threshold ${MIN_THRESHOLD})`);
+      applyThreshold();
+    }
+
+    // Re-derive the reviewable groups from the clustering.
+    //
+    // The model: one document, many parameterizations, ONE set of human decisions.
+    // Candidate membership is temporary; a judgement about a detection is not. So
+    // decisions are keyed by DetRef and groups are ephemeral views — a re-cluster
+    // can split, merge or dissolve a group, and there is no meaningful way to
+    // inherit "group A was reviewed" once group A no longer exists. Review state
+    // is therefore *derived* from the decisions of a group's current members, and
+    // never stored on the group.
+    function applyThreshold() {
+      state.groups = state.allGroups.filter((g) => g.media_count >= state.threshold);
+      state.instancesByMedia = new Map();
+      state.groupByDet = new Map();
+      for (const g of state.groups) {
+        for (const inst of g.instances) {
+          state.groupByDet.set(detKey(inst.det_ref), g); // which candidates are under review, and where
+          const past = state.decisions.get(detKey(inst.det_ref));
+          inst.decided = !!past;                            // false = never judged
+          inst.decision = past ? past.decision : "Remove";  // candidates default to Remove
+          const list = state.instancesByMedia.get(inst.det_ref.image_index);
+          if (list) list.push(inst);
+          else state.instancesByMedia.set(inst.det_ref.image_index, [inst]);
+        }
+      }
+      logVideoPlumbing();
+      updateMatchedMetric();
+    }
+
+    const detKey = (ref) => ref.image_index + ":" + ref.detection_index;
+
+    // The matched metric describes the candidates currently on screen, so it has
+    // to be recomputed whenever the threshold moves the candidate set.
+    function updateMatchedMetric() {
+      if (!state.folderLoaded) return;
+      const media = new Set(state.groups.flatMap((g) => g.instances.map((i) => i.det_ref.image_index)));
+      if (state.folderMode === "fsa") { $("m-matched").textContent = String(media.size); return; }
+      let matched = 0;
+      for (const idx of media) if (state.fileByImageIndex.has(idx)) matched++;
+      $("m-matched").textContent = `${matched}/${media.size}`;
+    }
+
+
+    // Review state of a group, derived from its current members:
+    // unreviewed (none judged) · partial (some) · reviewed (all).
+    function groupProgress(group) {
+      let decided = 0;
+      for (const inst of group.instances) if (inst.decided) decided++;
+      const total = group.instances.length;
+      return {
+        total, decided, pending: total - decided,
+        state: decided === 0 ? "unreviewed" : decided === total ? "reviewed" : "partial",
+      };
+    }
+
+    // Review progress across the whole current candidate view.
+    function reviewProgress() {
+      const totals = { decided: 0, pending: 0, reviewed: 0, partial: 0, unreviewed: 0 };
+      for (const g of state.groups) {
+        const p = groupProgress(g);
+        totals.decided += p.decided;
+        totals.pending += p.pending;
+        totals[p.state]++;
+      }
+      return { ...totals, groups: state.groups.length };
+    }
+
+    /// Totals for one threshold, without rebuilding anything — this is what makes
+    /// the tuning view answer "how much review work does this setting create?".
+    function thresholdTotals(threshold) {
+      let groups = 0, instances = 0;
+      const media = new Set(), cameras = new Set();
+      for (const g of state.allGroups) {
+        if (g.media_count < threshold) continue;
+        groups++;
+        instances += g.instances.length;
+        cameras.add(g.camera);
+        for (const i of g.instances) media.add(i.det_ref.image_index);
+      }
+      return { threshold, groups, instances, media: media.size, cameras: cameras.size };
+    }
+
+    // The tuning controller. Two kinds of parameter, because they cost different
+    // things: the occurrence threshold is a filter over an existing clustering
+    // (instant), while everything else decides which detections cluster at all and
+    // needs a re-run (~1 s on a 73k-media document).
+    const tuning = {
+      totals: (threshold = state.threshold) => thresholdTotals(threshold),
+
+      // The sensitivity ladder: what each threshold would cost to review. This is
+      // the point of the exercise — choosing a cut on a distribution you can see
+      // beats guessing whether 20 or 50 is sensible.
+      curve() {
+        // Exactly the selectable values — no row is invented for an off-scale
+        // choice, because there is no way to make one.
+        return occurrenceSteps().map((t) => thresholdTotals(t));
+      },
+
+      setThreshold(value) {
+        const threshold = Math.max(MIN_THRESHOLD, Math.round(value) || MIN_THRESHOLD);
+        if (threshold === state.threshold) return tuning.totals();
+        state.threshold = threshold;
+        state.round++;
+        applyThreshold(); // same group objects, so "reviewed" marks survive
+        resumeReview(`Threshold ${threshold}: ${state.groups.length.toLocaleString()} candidate group(s).`);
+        return tuning.totals();
+      },
+
+      // Cluster with the proposed parameters and report what they would cost,
+      // WITHOUT touching the review. Rebuilding the review is what makes a
+      // parameter change expensive — it re-renders and re-decodes crops — and none
+      // of that is needed to answer "is this setting sensible?".
+      async previewOptions(patch) {
+        const proposed = { ...state.options, ...patch };
+        const before = thresholdTotals(state.threshold);
+        status.textContent = "Clustering with the proposed parameters…";
+        const options = JSON.stringify({ ...proposed, occurrence_threshold: MIN_THRESHOLD });
+        const groups = JSON.parse((await call("find", { options })).groups);
+
+        const kept = groups.filter((g) => g.media_count >= state.threshold);
+        const media = new Set(), cameras = new Set(), nowCandidate = new Set();
+        let instances = 0, inherited = 0;
+        for (const g of kept) {
+          instances += g.instances.length;
+          cameras.add(g.camera);
+          for (const i of g.instances) {
+            media.add(i.det_ref.image_index);
+            nowCandidate.add(detKey(i.det_ref));
+            if (state.decisions.has(detKey(i.det_ref))) inherited++;
+          }
+        }
+        let dropped = 0;
+        for (const g of state.groups) {
+          for (const i of g.instances) if (!nowCandidate.has(detKey(i.det_ref))) dropped++;
+        }
+        state.preview = { options: proposed, groups };
+        status.textContent = "This is a preview. Apply it to your review, or discard it.";
+        return {
+          before,
+          after: { groups: kept.length, instances, media: media.size, cameras: cameras.size },
+          inherited, needsReview: instances - inherited, dropped,
+        };
+      },
+
+      // Commit the previewed clustering. Only now does the review rebuild.
+      applyPreview() {
+        if (!state.preview) return null;
+        state.options = state.preview.options;
+        state.allGroups = state.preview.groups;
+        state.preview = null;
+        state.round++;
+        state.rounds.push({ round: state.round, at: Date.now(), ...state.options, occurrence_threshold: state.threshold });
+        applyThreshold();
+        const progress = reviewProgress();
+        const after = thresholdTotals(state.threshold);
+        resumeReview(`${after.groups.toLocaleString()} candidate group(s) · ` +
+          `${progress.decided.toLocaleString()} inherited, ${progress.pending.toLocaleString()} need review.`);
+        return after;
+      },
+
+      discardPreview() {
+        state.preview = null;
+        status.textContent = "";
+      },
+    };
+    window.__rdeTune = tuning; // also the console handle for tuning without the UI
+
+    // ---- Tuning panel --------------------------------------------------------
+    // Built around impact rather than around the controls: the question a reviewer
+    // is actually asking is "how much work does this setting create, and am I
+    // starting to sweep up detections I would rather look at?".
+
+
+    // One slider implementation, single- or two-thumb. `values` restricts the
+    // control to a fixed set of steps, which is what keeps the occurrence ladder
+    // honest: every selectable value is a row in it, so it never grows one.
+    function rangeControl(id, { min, max, step = 1, values = null, ticks = null,
+                                format = String, onChange = null, single = false }) {
+      const root = $(id);
+      const track = root.querySelector(".range-track");
+      const fill = root.querySelector(".range-fill");
+      const readout = root.querySelector(".range-value");
+      const names = single ? ["v"] : ["lo", "hi"];
+      const thumbs = Object.fromEntries(names.map((n) => [n, root.querySelector("." + n)]));
+      const state = single ? { v: min } : { lo: min, hi: max };
+
+      const snap = (raw) => {
+        const v = Math.min(max, Math.max(min, raw));
+        if (!values) return Math.round(v / step) * step;
+        return values.reduce((best, c) => (Math.abs(c - v) < Math.abs(best - v) ? c : best), values[0]);
+      };
+      const pct = (v) => ((v - min) / (max - min)) * 100;
+
+      function paint() {
+        for (const n of names) thumbs[n].style.left = `${pct(state[n])}%`;
+        fill.style.left = single ? "0%" : `${pct(state.lo)}%`;
+        fill.style.width = single ? `${pct(state.v)}%` : `${pct(state.hi) - pct(state.lo)}%`;
+        if (readout) readout.textContent = single ? format(state.v) : `${format(state.lo)} – ${format(state.hi)}`;
+      }
+      function set(which, raw, notify = true) {
+        const v = snap(raw);
+        // Thumbs may meet but never cross, so the band stays readable.
+        state[which] = single ? v : which === "lo" ? Math.min(v, state.hi) : Math.max(v, state.lo);
+        paint();
+        if (notify && onChange) onChange(single ? state.v : { lo: state.lo, hi: state.hi });
+      }
+      const valueAt = (event) => {
+        const box = track.getBoundingClientRect();
+        return min + ((event.clientX - box.left) / box.width) * (max - min);
+      };
+      for (const n of names) {
+        thumbs[n].addEventListener("pointerdown", (e) => {
+          e.preventDefault();
+          thumbs[n].setPointerCapture(e.pointerId);
+          const move = (ev) => set(n, valueAt(ev));
+          const up = () => { thumbs[n].removeEventListener("pointermove", move); thumbs[n].removeEventListener("pointerup", up); };
+          thumbs[n].addEventListener("pointermove", move);
+          thumbs[n].addEventListener("pointerup", up);
+        });
+        thumbs[n].addEventListener("keydown", (e) => {
+          const dir = { ArrowLeft: -1, ArrowDown: -1, ArrowRight: 1, ArrowUp: 1 }[e.key];
+          if (!dir) return;
+          e.preventDefault();
+          if (values) {
+            const i = values.indexOf(state[n]);
+            set(n, values[Math.min(values.length - 1, Math.max(0, (i < 0 ? 0 : i) + dir))]);
+          } else set(n, state[n] + dir * step);
+        });
+      }
+      track.addEventListener("pointerdown", (e) => {
+        if (e.target !== track && e.target !== fill) return;
+        const v = valueAt(e);
+        set(single ? "v" : Math.abs(v - state.lo) <= Math.abs(v - state.hi) ? "lo" : "hi", v);
+      });
+
+      // Dots sit on the track itself; labels go underneath, on as many as fit
+      // without crowding.
+      function drawTicks(at) {
+        const labels = root.querySelector(".range-ticks");
+        for (const old of track.querySelectorAll(".range-mark")) old.remove();
+        if (labels) labels.textContent = "";
+        const every = Math.ceil(at.length / 6);
+        at.forEach((v, i) => {
+          const mark = document.createElement("i");
+          mark.className = "range-mark";
+          mark.style.left = `${pct(v)}%`;
+          track.appendChild(mark);
+          if (!labels || (i % every && i !== at.length - 1)) return;
+          const label = document.createElement("span");
+          label.style.left = `${pct(v)}%`;
+          label.textContent = format(v);
+          labels.appendChild(label);
+        });
+      }
+      if (ticks || values) drawTicks(ticks || values);
+
+      return {
+        get: () => (single ? state.v : { lo: +state.lo.toFixed(4), hi: +state.hi.toFixed(4) }),
+        set: (a, b) => { if (single) state.v = snap(a); else { state.lo = snap(a); state.hi = snap(b); } paint(); },
+        setScale: (newMax, newValues) => {
+          max = newMax;
+          if (newValues) values = newValues;
+          drawTicks(newValues || ticks || values);
+          paint();
+        },
+      };
+    }
+
+    const pctFmt = (v) => v.toFixed(2);
+    const confBand = rangeControl("dual-conf", { min: 0, max: 1, step: 0.01, format: pctFmt,
+      ticks: [0, 0.25, 0.5, 0.75, 1] });
+    const sizeBand = rangeControl("dual-size", { min: 0, max: 1, step: 0.01, format: pctFmt,
+      ticks: [0, 0.25, 0.5, 0.75, 1] });
+    const iouSlider = rangeControl("opt-iou", { min: 0.5, max: 1, step: 0.01, single: true, format: pctFmt,
+      ticks: [0.5, 0.6, 0.7, 0.8, 0.9, 1] });
+    const occurrence = rangeControl("occ-range", { min: 2, max: 250, single: true, format: String,
+      values: OCCURRENCE_STEPS, onChange: (v) => setThresholdFromUi(v) });
+
+    // Cameras for a candidate level, straight from the paths — no clustering
+    // needed, so the consequence of a choice is visible before committing to it.
+    function camerasAtLevel(level) {
+      const counts = new Map();
+      for (const path of state.imageFiles || []) {
+        const parts = String(path).split(/[\\/]/).filter(Boolean);
+        const name = parts[parts.length - 2 - level];
+        if (name) counts.set(name, (counts.get(name) || 0) + 1);
+      }
+      return counts;
+    }
+
+    // The two ways this goes wrong are silent: one camera means boxes from
+    // different sites get compared, and one camera per file means nothing can
+    // ever recur. Both look like a working setting until the results are wrong.
+    function renderCameraCheck() {
+      const level = Number($("opt-camlevel").value) || 0;
+      const counts = camerasAtLevel(level);
+      const names = [...counts.keys()].sort();
+      const media = (state.imageFiles || []).length;
+      const sizes = [...counts.values()].sort((a, b) => a - b);
+      const summary = $("camera-summary");
+      let note = `${names.length.toLocaleString()} camera(s)`;
+      if (sizes.length) note += ` · median ${sizes[sizes.length >> 1].toLocaleString()} media each`;
+      summary.textContent = note;
+      summary.classList.remove("warn");
+      if (names.length <= 1 && media > 1) {
+        summary.textContent = `${note} — every file counts as one camera, so boxes from different sites will be compared`;
+        summary.classList.add("warn");
+      } else if (media && names.length > media * 0.5) {
+        summary.textContent = `${note} — almost one camera per file, so nothing can recur`;
+        summary.classList.add("warn");
+      }
+      const list = $("camera-list");
+      list.textContent = "";
+      for (const name of names) {
+        const row = document.createElement("div");
+        row.textContent = `${name} · ${counts.get(name).toLocaleString()}`;
+        list.appendChild(row);
+      }
+      $("camera-all").hidden = names.length <= 1;
+    }
+
+    // Offer the real folder names rather than a depth number: "which of these is
+    // the camera?" is a question about this dataset, and the answer is legible
+    // only if you can see the names it would produce.
+    function fillCameraLevels() {
+      const select = $("opt-camlevel");
+      const sample = (state.imageFiles || []).find(Boolean) || "";
+      const parts = sample.split(/[\\/]/).filter(Boolean);
+      select.textContent = "";
+      // level 0 is the folder the file sits in, counting back from the leaf
+      for (let level = 0; level < Math.min(5, Math.max(parts.length - 1, 1)); level++) {
+        const name = parts[parts.length - 2 - level];
+        if (!name) break;
+        const option = document.createElement("option");
+        option.value = String(level);
+        option.textContent = name;
+        select.appendChild(option);
+      }
+      select.value = String(state.options.n_dir_levels_from_leaf);
+      if (!select.value) select.value = "0";
+      $("camera-setup").hidden = false;
+      renderCameraCheck();
+    }
+
+    // Keep the block's affordance honest about what pressing it will do.
+    function syncTuneToggle() {
+      const open = !$("tune").hidden;
+      $("tune-open").setAttribute("aria-expanded", String(open));
+      const edit = document.querySelector(".params-edit");
+      if (edit) edit.textContent = open ? "Close ▴" : "Tune ▸";
+    }
+
+    // The controls always mirror the options actually in effect, whether or not
+    // anyone is looking at them — so opening the panel never shows stale values.
+    function syncTuningControls() {
+      const steps = occurrenceSteps();
+      occurrence.setScale(steps[steps.length - 1], steps);
+      occurrence.set(state.threshold);
+      iouSlider.set(state.options.iou_threshold);
+      confBand.set(state.options.confidence_min, state.options.confidence_max);
+      sizeBand.set(state.options.min_suspicious_size, state.options.max_suspicious_size);
+      $("opt-agnostic").checked = !!state.options.category_agnostic;
+    }
+
+    function showTuning() {
+      syncTuningControls();
+      $("tune").hidden = false;
+      syncTuneToggle();
+      renderTuning();
+    }
+
+    // IoU sensitivity. Unlike the occurrence threshold, IoU decides what *merges*,
+    // so no curve can be derived from an existing clustering — every point is a
+    // real re-cluster (~1 s on a 73k-media document). Estimating it by re-filtering
+    // instead was measured at up to 44% off at the far end, i.e. most wrong exactly
+    // where the decision is biggest. Hence: user-triggered, and exact.
+    //
+    // Each point keeps only (media_count, instance count) per group, which is all
+    // the table needs — so moving the occurrence threshold re-reads it for free.
+    const IOU_POINTS = [0.95, 0.9, 0.85, 0.8, 0.7];
+    let iouSensitivity = null; // { key, rows: [{ iou, groups: [[media_count, instances]] }] }
+
+    // Everything except IoU and the threshold; the table is stale if these change.
+    function sensitivityKey() {
+      const { iou_threshold, occurrence_threshold, ...rest } = state.options;
+      return JSON.stringify(rest);
+    }
+
+    async function computeIouSensitivity() {
+      const points = [...new Set([...IOU_POINTS, state.options.iou_threshold])].sort((a, b) => b - a);
+      const button = $("iou-compute");
+      const rows = [];
+      for (const [i, iou] of points.entries()) {
+        button.textContent = `Computing ${i + 1}/${points.length}…`;
+        const options = { ...state.options, iou_threshold: iou, occurrence_threshold: MIN_THRESHOLD };
+        const groups = JSON.parse((await call("find", { options: JSON.stringify(options) })).groups);
+        rows.push({ iou, groups: groups.map((g) => [g.media_count, g.instances.length]) });
+      }
+      iouSensitivity = { key: sensitivityKey(), rows };
+      button.textContent = "Recompute IoU sensitivity";
+      renderIouSensitivity();
+    }
+
+    function renderIouSensitivity() {
+      const host = $("iou-table");
+      host.textContent = "";
+      if (!iouSensitivity) return;
+      // Counted at the CURRENT occurrence threshold, so the two controls agree.
+      const counted = iouSensitivity.rows.map((row) => {
+        let groups = 0, candidates = 0;
+        for (const [media, instances] of row.groups) {
+          if (media < state.threshold) continue;
+          groups++; candidates += instances;
+        }
+        return { iou: row.iou, groups, candidates };
+      });
+      const most = counted.reduce((m, r) => Math.max(m, r.candidates), 1);
+      const table = document.createElement("table");
+      table.className = "ladder";
+      const body = document.createElement("tbody");
+      body.appendChild(ladderHeader("IoU"));
+      for (const row of counted) {
+        const tr = document.createElement("tr");
+        if (Math.abs(row.iou - state.options.iou_threshold) < 1e-6) tr.className = "at";
+        const cell = (text, cls) => { const td = document.createElement("td"); td.textContent = text; if (cls) td.className = cls; tr.appendChild(td); return td; };
+        cell(row.iou.toFixed(2));
+        cell(row.groups.toLocaleString(), "n");
+        cell(`${row.candidates.toLocaleString()} candidates`, "n");
+        const bar = cell("", "bar");
+        const fill = document.createElement("i");
+        fill.style.width = `${Math.max(2, Math.round(100 * row.candidates / most))}%`;
+        bar.appendChild(fill);
+        tr.title = "Put this value in the IoU box (then Apply)";
+        tr.addEventListener("click", () => iouSlider.set(row.iou));
+        body.appendChild(tr);
+      }
+      table.appendChild(body);
+      host.appendChild(table);
+      const note = document.createElement("p");
+      note.className = "hint";
+      note.textContent = iouSensitivity.key !== sensitivityKey()
+        ? "These numbers are out of date — other parameters changed since. Compute again."
+        : `Other parameters held constant · counted at occurrence ≥ ${state.threshold}`;
+      host.appendChild(note);
+    }
+
+    // Cheap enough to run on every decision — the ladder below is not, so it is
+    // rebuilt only when the candidate set actually changes.
+    // The parameters in effect, always visible, doubling as the way in to tuning.
+    function renderParams() {
+      const list = $("params-list");
+      if (!list) return;
+      const o = state.options;
+      const levels = [...($("opt-camlevel")?.options || [])];
+      const cameraName = levels.find((level) => level.value === String(o.n_dir_levels_from_leaf))?.textContent;
+      const rows = [
+        ["occurrence", `≥ ${state.threshold}`],
+        ["confidence", `${o.confidence_min.toFixed(2)} – ${o.confidence_max.toFixed(2)}`],
+        ["box area", `${o.min_suspicious_size.toFixed(2)} – ${o.max_suspicious_size.toFixed(2)}`],
+        ["same-box IoU", o.iou_threshold.toFixed(2)],
+      ];
+      // Camera folder is not a tuning parameter — it is dataset setup, chosen
+      // once, and it already has its own control with a sanity check. Listing it
+      // here made the box look like the place to change it.
+      if (o.category_agnostic) rows.push(["categories", "compared across"]);
+      list.textContent = "";
+      for (const [name, value] of rows) {
+        const dt = document.createElement("dt"); dt.textContent = name;
+        const dd = document.createElement("dd"); dd.textContent = value;
+        list.append(dt, dd);
+      }
+    }
+
+    // Every count the reviewer sees, in one place. The tuning panel used to carry
+    // a second, differently-worded copy of the same numbers.
+    function renderStats() {
+      if (!state.allGroups.length && !state.groups.length) return;
+      const now = tuning.totals();
+      const p = reviewProgress();
+      $("m-groups").textContent = now.groups.toLocaleString();
+      $("m-candidates").textContent = now.instances.toLocaleString();
+      $("m-reviewed").textContent = p.decided + p.pending
+        ? `${p.decided.toLocaleString()}/${(p.decided + p.pending).toLocaleString()}`
+        : "–";
+      $("m-reviewed").title = `${p.reviewed} groups done · ${p.partial} partial · ${p.unreviewed} untouched`;
+      updateMatchedMetric();
+      renderParams();
+    }
+
+    // Without this the rows read as three unlabelled numbers.
+    function ladderHeader(first) {
+      const tr = document.createElement("tr");
+      tr.className = "head";
+      for (const text of [first, "groups", "candidates"]) {
+        const th = document.createElement("td");
+        th.textContent = text;
+        tr.appendChild(th);
+      }
+      tr.appendChild(document.createElement("td"));
+      return tr;
+    }
+
+    function renderTuning() {
+      renderStats();
+      renderIouSensitivity(); // no-op until computed; re-reads at the current threshold
+      const rows = tuning.curve();
+      const most = rows.reduce((m, r) => Math.max(m, r.instances), 1);
+      const body = $("ladder");
+      body.textContent = "";
+      body.appendChild(ladderHeader("occurrence"));
+      for (const row of rows) {
+        const tr = document.createElement("tr");
+        if (row.threshold === state.threshold) tr.className = "at";
+        const cell = (text, cls) => { const td = document.createElement("td"); td.textContent = text; if (cls) td.className = cls; tr.appendChild(td); return td; };
+        cell(`≥ ${row.threshold}`);
+        cell(row.groups.toLocaleString(), "n");
+        cell(row.instances.toLocaleString(), "n");
+        const bar = cell("", "bar");
+        const fill = document.createElement("i");
+        fill.style.width = `${Math.max(2, Math.round(100 * row.instances / most))}%`;
+        bar.appendChild(fill);
+        tr.addEventListener("click", () => setThresholdFromUi(row.threshold));
+        body.appendChild(tr);
+      }
+    }
+
+    function setThresholdFromUi(value) {
+      tuning.setThreshold(value);
+      occurrence.set(state.threshold);
+      renderTuning();
+    }
+    // IoU is the one parameter whose effect cannot be derived, so it is measured
+    // on request: five real re-clusters, current value included and highlighted.
+    $("iou-compute").addEventListener("click", async () => {
+      const button = $("iou-compute");
+      button.disabled = true;
+      try { await computeIouSensitivity(); }
+      catch (err) { showError(err); button.textContent = "Compute IoU sensitivity"; }
+      finally { button.disabled = false; }
+    });
+    // Leaving the mode removes the panel outright — a collapsed header floating
+    // over the tiles is still in the way.
+    function collapseTuning() {
+      $("tune").hidden = true;
+      syncTuneToggle();
+    }
+
+    // One button; the choice is only interesting once you have decided to spend
+    // the time, so it lives behind the click rather than in front of it.
+    const precomputeMenu = (open) => {
+      $("precompute-menu").hidden = !open;
+      $("precompute-open").setAttribute("aria-expanded", String(open));
+    };
+    $("precompute-help").addEventListener("click", (e) => {
+      e.stopPropagation();
+      $("precompute-why").hidden = !$("precompute-why").hidden;
+    });
+    $("precompute-open").addEventListener("click", () => {
+      if (precompute.running) { runPrecompute().catch(showError); return; } // acts as Stop
+      precomputeMenu($("precompute-menu").hidden);
+    });
+    for (const scope of ["exemplars", "all"]) {
+      $(`precompute-${scope}`).addEventListener("click", () => {
+        precomputeMenu(false);
+        runPrecompute(scope).catch(showError);
+      });
+    }
+    document.addEventListener("click", (e) => {
+      if (!e.target.closest(".menu-wrap")) precomputeMenu(false);
+      if (!e.target.closest("#precompute-why, #precompute-help")) $("precompute-why").hidden = true;
+      if (!e.target.closest("#shortcuts, #shortcuts-open")) showShortcuts(false);
+    });
+    $("tune-collapse").addEventListener("click", collapseTuning);
+    $("opt-camlevel").addEventListener("change", async () => {
+      renderCameraCheck();
+      state.options.n_dir_levels_from_leaf = Number($("opt-camlevel").value) || 0;
+      status.textContent = "Re-clustering for the new camera folder…";
+      try {
+        await recluster();
+        resumeReview(`${state.groups.length.toLocaleString()} candidate group(s).`);
+        renderStats();
+        if (!$("tune").hidden) renderTuning();
+      } catch (err) { showError(err); }
+    });
+
+    // The same control opens and closes it: the block shows the parameters, so it
+    // is also the obvious place to press to stop looking at them.
+    $("tune-open").addEventListener("click", () => {
+      if (!$("tune").hidden) { collapseTuning(); return; }
+      showTuning();
+    });
+    // What the controls currently say. Read in one place so preview, apply and
+    // reset cannot drift apart.
+    function pendingOptions() {
+      const conf = confBand.get(), size = sizeBand.get();
+      return {
+        category_agnostic: $("opt-agnostic").checked,
+        confidence_min: conf.lo, confidence_max: conf.hi,
+        min_suspicious_size: size.lo, max_suspicious_size: size.hi,
+        iou_threshold: iouSlider.get(),
+        n_dir_levels_from_leaf: Number($("opt-camlevel").value) || 0,
+      };
+    }
+
+    function showPreviewButtons(previewing) {
+      $("tune-preview").hidden = previewing;
+      $("tune-confirm").hidden = !previewing;
+      $("tune-discard").hidden = !previewing;
+    }
+
+    $("tune-preview").addEventListener("click", async () => {
+      $("tune-preview").disabled = true;
+      try {
+        const r = await tuning.previewOptions(pendingOptions());
+        const delta = (a, b) => (b === a ? "unchanged" : `${a.toLocaleString()} → ${b.toLocaleString()}`);
+        $("tune-impact").textContent =
+          `Preview · groups ${delta(r.before.groups, r.after.groups)} · candidates ${delta(r.before.instances, r.after.instances)}` +
+          ` · ${r.inherited.toLocaleString()} decisions would carry over, ${r.needsReview.toLocaleString()} would need review` +
+          (r.dropped ? ` · ${r.dropped.toLocaleString()} no longer candidates` : "");
+        showPreviewButtons(true);
+      } catch (err) {
+        showError(err);
+      } finally {
+        $("tune-preview").disabled = false;
+      }
+    });
+
+    $("tune-confirm").addEventListener("click", () => {
+      tuning.applyPreview();
+      showPreviewButtons(false);
+      $("tune-impact").textContent = "";
+      renderTuning();
+      renderStats();
+      collapseTuning(); // tuning is settled; give the room back to the crops
+    });
+
+    $("tune-discard").addEventListener("click", () => {
+      tuning.discardPreview();
+      showPreviewButtons(false);
+      $("tune-impact").textContent = "";
+      showTuning(); // put the controls back to what is actually in effect
+    });
+
+    $("tune-reset").addEventListener("click", () => {
+      confBand.set(DEFAULT_OPTIONS.confidence_min, DEFAULT_OPTIONS.confidence_max);
+      sizeBand.set(DEFAULT_OPTIONS.min_suspicious_size, DEFAULT_OPTIONS.max_suspicious_size);
+      iouSlider.set(DEFAULT_OPTIONS.iou_threshold);
+      $("opt-camlevel").value = String(DEFAULT_OPTIONS.n_dir_levels_from_leaf);
+      $("opt-agnostic").checked = !!DEFAULT_OPTIONS.category_agnostic;
+      setThresholdFromUi(DEFAULT_OPTIONS.occurrence_threshold);
+      $("tune-impact").textContent = "Back to the defaults. Preview to see what they would change.";
+    });
+
+    // Re-enter at the first group that still needs attention.
+    function resumeReview(note) {
+      const first = state.groups.findIndex((g) => groupProgress(g).state !== "reviewed");
+      goToGroup(first < 0 ? 0 : first);
+      updateExportBar();
+      if (note) status.textContent = note;
+    }
+
+    // How much of this document's review is video, and are those instances
+    // decodable? Video crops need BOTH a per-clip frame_rate and a per-detection
+    // frame_number; anything missing one can only ever show a placeholder, so
+    // surface it now rather than as a silent blank tile later (SPEC §7).
+    function logVideoPlumbing() {
+      const instances = state.groups.flatMap((g) => g.instances);
+      const video = instances.filter((i) => i.frame_number !== undefined);
+      if (!video.length) {
+        console.log(`[rde] video: none of the ${instances.length} suspicious instances are video frames`);
+        return;
+      }
+      const clips = new Set(video.map((i) => i.det_ref.image_index));
+      const noRate = [...clips].filter((idx) => !state.frameRateByImageIndex.has(idx));
+      const demuxable = [...clips].filter((idx) => /\.(mp4|mov|m4v)$/i.test(state.imageFiles?.[idx] || ""));
+      console.log(
+        `[rde] video: ${video.length} of ${instances.length} instances across ${clips.size} clips` +
+        ` — median ${median([...clips].map((idx) => video.filter((i) => i.det_ref.image_index === idx).length))} frames/clip` +
+        `, ${demuxable.length}/${clips.size} mp4/mov (mp4box-demuxable)`,
+      );
+      if (noRate.length) console.warn(`[rde] ${noRate.length} clips have frame detections but no frame_rate`, noRate.slice(0, 5));
+      // A document that is mostly video, in a context that can't decode video, is
+      // worth saying out loud — the tiles would otherwise just sit there.
+      if (!hasWebCodecs) {
+        const why = isSecureContext
+          ? "this browser has no WebCodecs (Chromium/Edge/Safari 16+ on desktop can decode)"
+          : `WebCodecs needs a secure context — open this on http://127.0.0.1 or over https, not ${location.origin}`;
+        console.warn(`[rde] video crops unavailable: ${why}`);
+        showError(`${video.length.toLocaleString()} of ${instances.length.toLocaleString()} crops are video frames, which can't be decoded here: ${why}.`);
+      }
+    }
+    const median = (xs) => (xs.length ? xs.slice().sort((a, b) => a - b)[xs.length >> 1] : 0);
+
+    // ---- 2. Load image folder + match + decode -------------------------------
+    $("folder-input").addEventListener("change", async (event) => {
+      // NB: the browser has already enumerated the whole folder tree by the time
+      // this fires — for a huge folder on a slow HDD, that enumeration (not our
+      // code) is the long freeze before this point.
+      const files = [...(event.target.files || [])];
+      if (!files.length) return;
+      const t0 = performance.now();
+      status.textContent = `Read ${files.length.toLocaleString()} files. Matching to the json…`;
+      await new Promise((r) => requestAnimationFrame(r)); // let the status paint first
+      try {
+        const pickedPaths = files.map((f) => f.webkitRelativePath || f.name);
+        const matches = JSON.parse((await call("match", { pickedPaths })).matches);
+        console.log(`[rde] folder read+match: ${files.length} files in ${Math.round(performance.now() - t0)} ms`);
+
+        // Keep EVERY match, not just the media in the groups showing right now.
+        // The candidate set is no longer fixed after load — lowering the occurrence
+        // threshold reveals groups whose media would otherwise never have been
+        // matched, and they would render as "no image" as if the file were absent.
+        // Bounded by the number of picked files, not by the document.
+        state.fileByImageIndex.clear();
+        for (let idx = 0; idx < matches.length; idx++) {
+          const m = matches[idx];
+          if (m && m.status === "matched") state.fileByImageIndex.set(idx, files[m.picked_index]);
+        }
+
+        // Counters describe the candidates on screen at the current threshold.
+        const suspicious = new Set(state.groups.flatMap((g) => g.instances.map((i) => i.det_ref.image_index)));
+        let matched = 0, missing = 0;
+        for (const idx of suspicious) {
+          if (state.fileByImageIndex.has(idx)) matched++;
+          else missing++;
+        }
+        collapseTuning();
+        state.folderLoaded = true;
+        const videos = [...suspicious].filter((idx) => { const f = state.fileByImageIndex.get(idx); return f && VIDEO_RE.test(f.name); }).length;
+        const images = matched - videos;
+        $("m-matched").textContent = `${matched}/${suspicious.size}`;
+        console.log(`[rde] suspicious media: ${suspicious.size} — image ${images}, video ${videos}, missing/ambiguous ${missing}`);
+        if (missing) {
+          // Show WHY the misses missed: the json path we looked for vs. a picked
+          // basename that exists, so a wrong-folder / path-mismatch is obvious.
+          const unmatched = [...suspicious].filter((idx) => matches[idx]?.status !== "matched");
+          console.warn(`[rde] ${missing} suspicious media not matched. Sample json paths we looked for:`,
+            unmatched.slice(0, 5).map((idx) => state.imageFiles?.[idx]));
+          console.warn(`[rde] Sample of the ${files.length} picked file paths:`,
+            files.slice(0, 5).map((f) => f.webkitRelativePath || f.name));
+        }
+        status.textContent =
+          `${matched.toLocaleString()} media ready` +
+          (videos ? ` (${images.toLocaleString()} image, ${videos.toLocaleString()} video)` : "") +
+          (missing ? `, ${missing.toLocaleString()} missing/ambiguous` : "") +
+          `.`;
+        $("precompute").hidden = false;
+        goToGroup(currentIndex); // re-render current group, now with crops + prefetch
+      } catch (err) {
+        showError(err);
+      }
+    });
+
+    // ---- 2. Load image folder --------------------------------------------------
+    // One button, two mechanisms. Preferred: File System Access — retain the
+    // picked directory *handle* and resolve each media's known json path lazily
+    // in the Media Worker (no global file index, no ~12 s enumeration freeze).
+    // Fallback: the hidden `webkitdirectory` <input> (other browsers, or when the
+    // FSA picker is blocked for lack of user activation — same issue Caracal hit).
+    async function alignDirectoryHandle(rootHandle) {
+      status.textContent = `Linking “${rootHandle.name}” to the json paths…`;
+      const suspicious = [...new Set(state.groups.flatMap((g) => g.instances.map((i) => i.det_ref.image_index)))];
+      // Any suspicious media works as an alignment probe — a video-only document
+      // has no stills to offer.
+      const samples = suspicious.map((i) => state.imageFiles[i]).filter(Boolean).slice(0, 8);
+      if (!samples.length) throw new Error("this document has no candidate media to locate");
+      const res = await mediaSetRoot(rootHandle, samples);
+      if (!res.ok) {
+        // The one error most likely to be seen by someone who has done nothing
+        // wrong, so it names the fix and shows the path we were looking for.
+        const want = samples[0] || "";
+        throw new Error(
+          `“${rootHandle.name}” doesn't seem to contain the media this .json describes. ` +
+          `It lists files like “${want}” — pick the folder that contains them ` +
+          `(any level above works).`);
+      }
+      collapseTuning();
+      state.folderMode = "fsa";
+      state.folderLoaded = true;
+      const nImg = suspicious.filter((i) => !VIDEO_RE.test(state.imageFiles[i] || "")).length;
+      const nVid = suspicious.length - nImg;
+      // What we INFERRED, shown as what it is. This branch used to report the
+      // candidate count as if it were a count of media found, so a wrong offset
+      // looked like a successful load with blank crops everywhere — the most
+      // confusing failure this tool can produce.
+      const shown = `${state.imageFiles[suspicious[0]] || ""}`.split(/[\\/]/).filter(Boolean).slice(res.offset).join("/");
+      console.log(`[rde] FSA root “${rootHandle.name}”: dropping ${res.offset} leading path ` +
+        `component(s), so “${shown}” is looked for under it — ${res.hits}/${res.probes} probes resolved`);
+      $("m-matched").textContent = `${suspicious.length}`;
+      const shaky = res.hits < res.probes;
+      status.textContent =
+        `Linked ${rootHandle.name} — ${suspicious.length.toLocaleString()} candidate media` +
+        (nVid ? ` (${nImg.toLocaleString()} image, ${nVid.toLocaleString()} video)` : "") +
+        (shaky
+          ? `. Only ${res.hits} of ${res.probes} sample paths were found under it — if crops come up blank, pick a different folder.`
+          : `.`);
+      $("precompute").hidden = false;
+      goToGroup(currentIndex);
+    }
+
+    // The dialog is modal to the browser but not to us: a second click while it
+    // is open throws "File picker already active", which is a double-click, not
+    // something to alarm anyone with. Guard it, and grey the button while the
+    // dialog is up so it is obvious why a second press does nothing.
+    let pickerOpen = false;
+    $("folder-fsa").addEventListener("click", async () => {
+      if (!window.showDirectoryPicker) { $("folder-input").click(); return; } // non-Chromium
+      if (pickerOpen) return;
+      pickerOpen = true;
+      $("folder-fsa").classList.add("disabled");
+      try {
+        const rootHandle = await window.showDirectoryPicker({ id: "rde-images", mode: "read" });
+        await alignDirectoryHandle(rootHandle);
+      } catch (err) {
+        if (err && err.name === "AbortError") return; // user dismissed the picker
+        if (/already active/i.test(err?.message || "")) return; // a second click got through
+        // Blocked for lack of user activation (Caracal's picker issue) → fall back
+        // to the plain directory <input>, which has looser activation rules.
+        if (err && (err.name === "SecurityError" || /user activation/i.test(err.message || ""))) {
+          $("folder-input").click();
+          return;
+        }
+        showError(err);
+      } finally {
+        pickerOpen = false;
+        $("folder-fsa").classList.remove("disabled");
+      }
+    });
+
+    // ---- Crop cache + prefetch (SPEC §5) ------------------------------------
+    // Crops are decoded by the Media Worker, batched by source media (one disk
+    // read yields all of that media's crops), into a cache of object URLs shown
+    // in <img> tiles.
+    //
+    // The cache is a size-bounded LRU, NOT group-scoped. 37% of this dataset's
+    // suspicious clips appear in more than one group (one appears in 14), a 1.77x
+    // re-decode factor — and re-decoding a 5 MP clip costs up to 2.9 s against the
+    // ~180 ms an image used to cost, which is what the old evict-on-group-switch
+    // policy was sized for. A whole dataset of crops is only ~110 MB at ~5 KB per
+    // 92px tile, so the budget below holds essentially everything.
+    //
+    // The key is `render-version : image_index : detection_index`. DetRef is stable
+    // across re-clustering (SPEC §6.1), so entries survive a parameter change; the
+    // version prefix is what invalidates them when crop *rendering* changes.
+    const VIDEO_RE = /\.(mp4|avi|mov|mkv|webm|m4v)$/i;
+    const RENDER_VERSION = "r2"; // bump when crop size/padding/box styling/format changes
+    // Scaled to the device rather than assuming a workstation. deviceMemory is
+    // coarse and missing in some browsers, but it is the only signal there is,
+    // and a flat 256 MB is a bad bet on a 4 GB laptop.
+    const CROP_CACHE_BYTES = Math.max(64, Math.min(512, (navigator.deviceMemory || 4) * 32)) * 1024 * 1024;
+    const cropKey = (ref) => RENDER_VERSION + ":" + ref.image_index + ":" + ref.detection_index;
+    const tileByKey = new Map(); // key -> tile element for the current render
+
+    const cropCache = {
+      entries: new Map(), // key -> { url, bytes }; Map iteration order == LRU order
+      bytes: 0,
+      has(key) { return this.entries.has(key); },
+      get(key) {
+        const e = this.entries.get(key);
+        if (!e) return undefined;
+        this.entries.delete(key); // reinsert to mark as most-recently-used
+        this.entries.set(key, e);
+        return e.url;
+      },
+      set(key, url, bytes) {
+        if (this.entries.has(key)) this.drop(key);
+        this.entries.set(key, { url, bytes });
+        this.bytes += bytes;
+        this.evictTo(CROP_CACHE_BYTES, { protect: key });
+      },
+      // Reclaim in order of how unlikely a crop is to be wanted again: ones whose
+      // detection has already been judged first (oldest of those first), then
+      // plain LRU. Never the group on screen — tileByKey holds exactly its keys,
+      // and those tiles are displaying their object URL right now, so revoking one
+      // is how a reviewed group turns into blank squares.
+      evictTo(limit, { decidedOnly = false, protect = null } = {}) {
+        const before = this.bytes;
+        for (const decided of decidedOnly ? [true] : [true, false]) {
+          if (this.bytes <= limit) break;
+          for (const key of [...this.entries.keys()]) {
+            if (this.bytes <= limit) break;
+            if (key === protect || tileByKey.has(key)) continue;
+            if (decided !== state.decisions.has(key.slice(key.indexOf(":") + 1))) continue;
+            this.drop(key);
+          }
+        }
+        return before - this.bytes;
+      },
+      drop(key) {
+        const e = this.entries.get(key);
+        if (!e) return;
+        URL.revokeObjectURL(e.url);
+        this.entries.delete(key);
+        this.bytes -= e.bytes;
+      },
+      clear() {
+        for (const e of this.entries.values()) URL.revokeObjectURL(e.url);
+        this.entries.clear();
+        this.bytes = 0;
+      },
+      get size() { return this.entries.size; },
+    };
+    function clearCropCache() { cropCache.clear(); }
+
+    let decodeN = 0, decodeMs = 0;
+    function recordDecode(ms) { decodeN++; decodeMs += ms; } // rough throughput, logged per group
+
+    function fillTile(key, url) {
+      const tile = tileByKey.get(key);
+      if (!tile || tile._drawn) return;
+      let img = tile.querySelector("img.crop");
+      if (!img) {
+        img = document.createElement("img");
+        img.className = "crop"; img.width = TILE; img.height = TILE; img.decoding = "async";
+        tile.insertBefore(img, tile.firstChild);
+      }
+      img.src = url; // cache owns the URL (revoked on group switch), so don't revoke on load
+      tile._drawn = true;
+      return img; // caller may await img.decode() to know when it is really on screen
+    }
+
+    // Shared decode limiter: at most DECODE_CONCURRENCY source reads in flight
+    // across the current group AND the prefetched-next group, so advancing is
+    // instant without ever seek-storming the HDD.
+    //
+    // Two tiers. Review always jumps the queue, and precompute is additionally
+    // capped one slot below the limit, so a slot frees for an interactive job
+    // within one source rather than after the whole backlog. Throughput was
+    // measured flat past 2, so the reserved slot costs the background pass ~nothing.
+    // How many background decodes may run at once. Not a constant: the right
+    // number depends on cores, storage and whether the decoder is in hardware,
+    // none of which we can read, so the precompute pass measures it (`tuner`).
+    let bgLimit = Math.max(1, DECODE_CONCURRENCY - 1);
+    let activeSrc = 0, activeBg = 0;
+    const srcQueue = [], bgQueue = [];
+    // How long interactive decodes TAKE, so the tuner can tell when background
+    // work is degrading review. Deliberately not queue wait: review has its own
+    // reserved slots, so it never queues behind background — a deep interactive
+    // queue is just a big group, and charging that to the tuner made it back off
+    // from a concurrency that was doing no harm.
+    const interactiveService = [];
+    function decodeSourceLimited(src, items, background = false) {
+      return new Promise((resolve) => {
+        (background ? bgQueue : srcQueue).push({ src, items, resolve, background });
+        pumpSrc();
+      });
+    }
+    function pumpSrc() {
+      // Two separate budgets rather than one shared pool: review always has its
+      // own DECODE_CONCURRENCY slots, so a background backlog can never queue in
+      // front of it, and the tuner's number is purely about background work.
+      while (activeSrc < DECODE_CONCURRENCY + bgLimit) {
+        const interactive = activeSrc - activeBg < DECODE_CONCURRENCY ? srcQueue.shift() : null;
+        const j = interactive || (activeBg < bgLimit ? bgQueue.shift() : null);
+        if (!j) break;
+        activeSrc++; if (j.background) activeBg++;
+        const started = performance.now();
+        mediaCropBatch(j.src, j.items).then(j.resolve).finally(() => {
+          activeSrc--; if (j.background) activeBg--;
+          if (!j.background) {
+            // Stamped: each window is judged on what happened *in* it, so one
+            // stale spike cannot cap the tuner for the rest of the run.
+            interactiveService.push({ at: performance.now(), ms: performance.now() - started });
+            if (interactiveService.length > 64) interactiveService.shift();
+          }
+          pumpSrc();
+        });
+      }
+    }
+    function interactiveServiceP90(since = 0) {
+      const recent = interactiveService.filter((w) => w.at >= since).map((w) => w.ms);
+      if (recent.length < 4) return 0; // too few to say anything
+      recent.sort((a, b) => a - b);
+      return recent[Math.floor(recent.length * 0.9)];
+    }
+
+    // The fetch plan for a set of instances: one entry per source media, so each
+    // is opened once (an image decoded once, a clip demuxed once). Video items
+    // carry their frame_number; media in a container the browser can't demux are
+    // left to their tile placeholder (SPEC §7).
+    //
+    // Takes instances rather than a group on purpose — which media to open is not
+    // a group concept. Reviewing passes one group's instances; a precompute pass
+    // would hand it the whole document's, and nothing else would need to change.
+    function sourcesFor(instances, { exact = false } = {}) {
+      const bySource = new Map();
+      const media = new Set(instances.map((i) => i.det_ref.image_index));
+      for (const imageIndex of media) {
+        const src = sourceOf(imageIndex);
+        if (!src) continue; // missing: handled at tile creation / on failure
+        // Media-complete: once a clip is open, crop EVERY suspicious detection on
+        // it, not just this group's. A detection belongs to exactly one group, so
+        // otherwise the 37% of clips that recur across groups get re-read and
+        // re-decoded once per group (a measured 1.77x). The extra crops come off
+        // frames we are decoding anyway and cost ~12 ms each, against 200 ms+ to
+        // re-read the file later. Tiles for other groups simply aren't on screen
+        // yet — fillTile ignores them and the LRU keeps the result.
+        // Ablation "groupcrops": crop only the instances asked for. This is a
+        // no-op during precompute, where the caller already passes every
+        // candidate — media-complete batching can only pay off while REVIEWING,
+        // when a clip opened for one group also serves the others that share it.
+        // Measuring it needs a sequential-review harness, not a precompute run.
+        const onThisMedium = exact || ABLATE.includes("groupcrops")
+          ? instances.filter((i) => i.det_ref.image_index === imageIndex)
+          : state.instancesByMedia.get(imageIndex) || [];
+        for (const inst of onThisMedium) {
+          const k = cropKey(inst.det_ref);
+          if (cropCache.has(k)) continue;
+          if (VIDEO_RE.test(src.name) && !decodableVideo(src.name, inst)) continue;
+          let e = bySource.get(imageIndex);
+          if (!e) bySource.set(imageIndex, e = { src, items: [] });
+          e.items.push({ key: k, bbox: inst.bbox, frameNumber: inst.frame_number });
+        }
+      }
+      return [...bySource.values()];
+    }
+
+    // A video crop needs a frame to seek to, a container mp4box can open, and a
+    // browser with WebCodecs. Anything else stays a placeholder rather than a
+    // failed decode — the ffmpeg pre-extraction path is the escape hatch.
+    const DEMUXABLE_RE = /\.(mp4|m4v|mov)$/i;
+    const hasWebCodecs = typeof VideoDecoder !== "undefined";
+    function decodableVideo(name, instance) {
+      return !videoBlocker(name, instance);
+    }
+    // Why this video can't be decoded, or null if it can. Each reason gets its own
+    // tile label — "it's a video" is not a useful thing to stare at.
+    //
+    // These are the words a reviewer reads when a crop is missing, so they name
+    // the situation rather than the mechanism: "not https" was our diagnosis of a
+    // secure-context failure, but their problem is that video crops need an https
+    // address, and their fix is to use one.
+    function videoBlocker(name, instance) {
+      if (!hasWebCodecs) return isSecureContext ? "no decoder" : "needs https";
+      if (instance.frame_number === undefined) return "no frame number";
+      if (!DEMUXABLE_RE.test(name)) return name.split(".").pop().toLowerCase();
+      return null;
+    }
+
+    // Progress belongs to the GROUP, not to whichever call is decoding it. The
+    // bar used to be driven by the caller: advancing onto a group that
+    // prefetch-next had already started hit the `_prefetching` early return, which
+    // painted "buffered" instantly while that earlier, silent run carried on
+    // filling tiles one at a time. That — not image decode — is the "bar finishes
+    // but tiles keep arriving" effect, and it hit images too. Measured display
+    // tail on the real dataset is 0-3 ms, so there is no paint problem to fix.
+    function paintBuffer(group) {
+      if (!group || group !== currentGroup()) return;
+      const p = group._progress;
+      if (p) setBuffering(p.done, p.total);
+      else setBuffering(1, 1); // nothing to fetch (all cached, or no folder yet)
+    }
+
+    // Prefetch a group's crops into the cache (+ fill its tiles if it's the one
+    // rendered). Idempotent; `group._active` gates it so an evicted group stops
+    // decoding.
+    async function prefetchGroup(group) {
+      // Wait for the folder: before it loads there are no files, and marking a
+      // group "prefetched" with 0 sources would skip it once files arrive.
+      if (!group || !state.folderLoaded) { paintBuffer(group); return; }
+      // Already running: just reflect its real progress. The in-flight run keeps
+      // calling paintBuffer, so the bar tracks it from here.
+      //
+      // Deliberately does NOT short-circuit on "this group was already fetched".
+      // Crops can be evicted after the fact — precompute filling the cache is
+      // exactly when that happens — and a group trusted as done never refetches
+      // them, so its tiles stay blank for good. sourcesFor() already skips what is
+      // cached, so asking it every time is both cheap and the only honest answer.
+      if (group._prefetching) { paintBuffer(group); return; }
+      group._prefetching = true;
+      // Only what is on screen. Media-complete batching would crop every
+      // candidate on an opened clip, which is the right trade when all members
+      // are shown and exactly the wrong one when six of two hundred are.
+      const sources = sourcesFor(visibleInstances(group), { exact: !group._expanded });
+      const total = sources.length;
+      let done = 0;
+      const t0 = performance.now();
+      const displayed = []; // img.decode() promises, for the display-ready timing
+      group._progress = { done, total };
+      paintBuffer(group);
+      await Promise.all(sources.map(async (s) => {
+        if (!group._active) return;
+        const batch = await decodeSourceLimited(s.src, s.items);
+        if (!group._active) return;
+        if (batch) {
+          const { results, failure } = batch;
+          // A clip can decode partially (a damaged frame throws while the rest are
+          // fine), so mark what didn't arrive rather than leaving blank tiles.
+          const got = new Set(results.map((r) => r.key));
+          const label = decodeFailLabel(failure);
+          for (const it of s.items) {
+            if (got.has(it.key)) continue;
+            const tile = tileByKey.get(it.key);
+            if (tile) markTile(tile, "failed", label);
+          }
+          for (const r of results) {
+            if (!r.blob) continue;
+            const url = URL.createObjectURL(r.blob);
+            cropCache.set(r.key, url, r.blob.size);
+            const img = fillTile(r.key, url);
+            // The buffer bar counts crops *produced*; this counts them actually
+            // painted. The gap between the two is the "tiles appear one by one
+            // after the bar finishes" effect.
+            if (img) displayed.push(img.decode().catch(() => {}));
+          }
+        } else {
+          // FSA: a failed source is almost always a path that didn't resolve
+          // (moved/renamed/case) — mark "no image"; fallback mode: a decode error.
+          const [cls, label] = state.folderMode === "fsa"
+            ? ["unmatched", "not found"]   // the path did not resolve under the picked folder
+            : ["failed", "unreadable"];
+          for (const it of s.items) { const t = tileByKey.get(it.key); if (t) markTile(t, cls, label); }
+        }
+        group._progress = { done: ++done, total };
+        paintBuffer(group); // no-op unless this group is the one on screen
+      }));
+      group._prefetching = false;
+      const bufferedMs = performance.now() - t0;
+      if (group._active && done >= total) {
+        if (total) {
+          // Wall clock to "crops produced" vs to "crops on screen" — the second
+          // is what the eye actually waits for.
+          Promise.all(displayed).then(() => {
+            const displayedMs = performance.now() - t0;
+            bench.groups.push({
+              camera: group.camera, sources: total, crops: displayed.length,
+              concurrency: DECODE_CONCURRENCY,
+              bufferedMs: +bufferedMs.toFixed(0), displayedMs: +displayedMs.toFixed(0),
+              tailMs: +(displayedMs - bufferedMs).toFixed(0),
+            });
+            console.log(`[rde] buffered “${group.camera}”: ${total} sources, ${Math.round(bufferedMs)} ms` +
+              ` → all ${displayed.length} tiles on screen at ${Math.round(displayedMs)} ms` +
+              ` (+${Math.round(displayedMs - bufferedMs)} ms display tail)`);
+          });
+        }
+      }
+      group._progress = { done: total, total };
+      paintBuffer(group);
+    }
+
+    // ---- Background concurrency, found by measurement ------------------------
+    // Cores say nothing about storage speed or whether the decoder is in
+    // hardware, and a number tuned on one machine is wrong on the next. So the
+    // precompute pass hill-climbs its own: run a window of sources, compare
+    // throughput with the last window, keep climbing while it improves, fall
+    // back to the best when it stops. It re-opens the search periodically —
+    // thermal state and competing load are not constants either.
+    //
+    // Measured in crops per second over VIDEO sources only. Clips and stills
+    // differ by ~100x in cost, so a window that happened to catch a run of jpgs
+    // would report a throughput spike that has nothing to do with concurrency.
+    const CONCURRENCY_CAP = Math.max(2, Math.min(
+      12, navigator.hardwareConcurrency || 4,
+      navigator.deviceMemory ? Math.max(2, navigator.deviceMemory) : 12,
+    ));
+    // Two things the production run proved, both fatal to a hill-climb.
+    //
+    // Throughput at a FIXED setting varied 11x between windows (3.3 to 36.4
+    // crops/s, +-38%): a window of a dozen clips catches whatever mix of easy and
+    // hard clips it lands on, so one window is not evidence. Each rung is
+    // therefore sampled several times and judged on the median.
+    //
+    // And the curve is NOT monotonic — measured medians were 9.6, 33.8, 19.2 and
+    // 44.2 crops/s at 6, 8, 10, 12. A climb stops at the first dip and never sees
+    // the peak beyond it. Replayed against those distributions, a climb found the
+    // best setting 2-10% of the time and gave up 23% of throughput; sweeping the
+    // ladder finds it ~78% of the time and gives up 5%. A sweep also assumes
+    // nothing about the shape of the curve, which is the point — the shape is a
+    // property of someone's hardware, not something to encode here.
+    const WINDOW_SOURCES = 16;   // video sources per measurement window
+    const SAMPLES_PER_LIMIT = 3; // windows per rung before it counts
+    const SERVICE_TOLERANCE = 2;   // review decodes may not take twice their best
+    const SERVICE_FLOOR_MS = 400;  // ...and below this nobody notices anyway
+    const DEGRADED_STREAK = 2;     // one slow window is a hiccup, not a trend
+    const RECHECK_WINDOWS = 20;  // settled is not the same as permanent
+    const TUNE_KEY = "rde.bgConcurrency.v1";
+
+    const tuner = {
+      on: false, scope: null, sources: 0, crops: 0, t0: 0, quietest: null, slow: 0,
+      ladder: [], rung: 0, settled: false, sinceRecheck: 0, history: [], samples: {},
+
+      /// Last session's answer is a starting point, never a conclusion: storage,
+      /// thermals and competing load all move between runs.
+      remembered() {
+        try {
+          const saved = JSON.parse(localStorage.getItem(TUNE_KEY) || "null");
+          if (saved && saved.build === BUILD) return saved.limit;
+        } catch { /* private mode, or someone else's value */ }
+        return null;
+      },
+      remember(limit) {
+        try { localStorage.setItem(TUNE_KEY, JSON.stringify({ limit, build: BUILD, at: Date.now() })); }
+        catch { /* nothing to do about it */ }
+      },
+
+      start() {
+        this.on = !MANUAL_CONCURRENCY;
+        if (!this.on) return;
+        this.quietest = null;
+        this.history = [];
+        this.startSweep();
+      },
+      set(limit) {
+        bgLimit = Math.max(1, Math.min(CONCURRENCY_CAP, limit));
+        pumpSrc(); // a raise only takes effect if something goes looking for work
+      },
+      credit(crops, isVideo) {
+        if (!this.on || !isVideo) return;
+        this.crops += crops;
+        if (++this.sources >= WINDOW_SOURCES) this.closeWindow();
+      },
+      closeWindow() {
+        const seconds = (performance.now() - this.t0) / 1000;
+        const rate = seconds > 0 ? this.crops / seconds : 0;
+        const at = bgLimit;
+        // Review comes first: a faster backlog that makes the reviewer wait is
+        // not a faster anything. Judged against the quietest window seen rather
+        // than an absolute — clips differ far too much for a fixed budget.
+        const service = interactiveServiceP90(this.t0);
+        if (service) this.quietest = Math.min(this.quietest ?? service, service);
+        const degraded = service && this.quietest
+          && service > Math.max(SERVICE_FLOOR_MS, this.quietest * SERVICE_TOLERANCE);
+        this.slow = degraded ? (this.slow || 0) + 1 : 0;
+        this.history.push({ limit: at, rate: +rate.toFixed(2), serviceMs: Math.round(service) });
+        (this.samples[at] ||= []).push(rate);
+        Object.assign(this, { sources: 0, crops: 0, t0: performance.now() });
+
+        // A run of slow review windows, not one of them: throughput swings 11x
+        // here, and a single sample sent the first version running from the
+        // setting that was twice as fast.
+        if (this.slow >= DEGRADED_STREAK && at > 1) {
+          this.slow = 0;
+          this.set(at - 1);
+          this.settled = true;
+          console.log(`[rde] background concurrency down to ${at - 1}:` +
+            ` review decodes slowed to ${Math.round(service)} ms (quietest ${Math.round(this.quietest)} ms)`);
+          return;
+        }
+        if (this.settled) {
+          if (++this.sinceRecheck >= RECHECK_WINDOWS) this.startSweep();
+          return;
+        }
+        // Stay on this rung until it has been sampled enough, then move on.
+        if (this.samples[at].length < SAMPLES_PER_LIMIT) return;
+        this.rung++;
+        if (this.rung < this.ladder.length) this.set(this.ladder[this.rung]);
+        else this.finish();
+      },
+
+      /// The settings worth trying — coarse rather than exhaustive, and ordered
+      /// to begin at the one we would have picked anyway. A document can run out
+      /// before the sweep ends, so the good guess is measured first and the low
+      /// rungs, which also take the longest to measure, come last.
+      startSweep() {
+        const rungs = [];
+        for (let n = 2; n < CONCURRENCY_CAP; n *= 2) rungs.push(n);
+        rungs.push(CONCURRENCY_CAP);
+        const unique = [...new Set(rungs)];
+        const start = this.remembered() || Math.max(2, Math.round(CONCURRENCY_CAP / 2));
+        // Ties go to the higher rung: it is both likelier to win and cheaper to measure.
+        const nearest = unique.reduce((b, n) => (Math.abs(n - start) <= Math.abs(b - start) ? n : b), unique[0]);
+        const from = unique.indexOf(nearest);
+        this.ladder = [...unique.slice(from), ...unique.slice(0, from)];
+        Object.assign(this, {
+          rung: 0, samples: {}, slow: 0, settled: false, sinceRecheck: 0,
+          sources: 0, crops: 0, t0: performance.now(),
+        });
+        this.set(this.ladder[0]);
+      },
+
+      /// The pass ended — decide on the evidence collected, even if the sweep
+      /// never reached the end of the ladder. Otherwise a document that runs out
+      /// mid-sweep leaves us parked on whichever rung was being probed, and
+      /// remembers nothing for next time.
+      stop() {
+        if (this.on && !this.settled && Object.keys(this.samples).length) this.finish();
+        this.on = false;
+      },
+
+      finish() {
+        // Best measured rung. Rungs the document was too short to reach simply
+        // do not compete.
+        const measured = this.ladder.filter((l) => (this.samples[l] || []).length);
+        const winner = measured.reduce((b, l) => (median(this.samples[l]) > median(this.samples[b]) ? l : b), measured[0]);
+        this.settled = true;
+        this.sinceRecheck = 0;
+        this.set(winner);
+        this.remember(winner);
+        console.log(`[rde] background concurrency ${winner} of [${this.ladder}] — median crops/s ` +
+          measured.map((l) => `${l}:${median(this.samples[l]).toFixed(1)}`).join(" "));
+      },
+    };
+
+    // ---- Precompute: make every crop before anyone asks for one --------------
+    // Decoding is the only slow thing left in review, and the reviewer only ever
+    // needs the group on screen — so the rest can be built ahead of time, while
+    // they work. Media-ordered rather than group-ordered: each clip is opened once
+    // for every crop anywhere in the document, which is where the measured 1.77x
+    // of cross-group re-reads goes.
+    const precompute = { running: false, cancelled: false, done: 0, total: 0, crops: 0, t0: 0 };
+    const CACHE_HIGH_WATER = CROP_CACHE_BYTES * 0.9;
+
+    // "0 MB" for a cache that holds something reads as broken.
+    const fmtMB = (bytes) => (bytes / 1e6).toFixed(bytes < 1e7 ? 1 : 0);
+
+    function fmtLeft(seconds) {
+      if (!isFinite(seconds) || seconds <= 0) return "";
+      if (seconds < 90) return `${Math.ceil(seconds)}s left`;
+      return `${Math.ceil(seconds / 60)} min left`;
+    }
+
+    function renderPrecompute(note) {
+      const out = $("precompute-status");
+      const open = $("precompute-open");
+      if (!open) return;
+      open.textContent = precompute.running
+        ? (precompute.scope === "exemplars" ? "Stop — exemplars" : "Stop — every member")
+        : "Precompute crops…";
+      if (note !== undefined) { out.textContent = note; return; }
+      if (!precompute.running) return;
+      const { done, total, crops, t0 } = precompute;
+      const elapsed = (performance.now() - t0) / 1000;
+      const left = done ? fmtLeft((total - done) * (elapsed / done)) : "";
+      out.textContent = `${done.toLocaleString()}/${total.toLocaleString()} ${precompute.scope === "exemplars" ? "exemplar" : "media"} · `
+        + `${crops.toLocaleString()} crops · ${fmtMB(cropCache.bytes)} MB`
+        + (left ? ` · ${left}` : "");
+    }
+
+    async function runPrecompute(scope) {
+      if (precompute.running) { precompute.cancelled = true; return; } // the button is also Stop
+      precompute.scope = scope;
+      // The candidates actually under review. Passing every group clustered at
+      // MIN_THRESHOLD looked like it precomputed more, but did not: sourcesFor
+      // takes each medium's items from `instancesByMedia`, which is built from
+      // the THRESHOLDED groups, so the extra media contributed no items and were
+      // silently skipped. The wider argument only made the intent misleading.
+      // Lowering the threshold afterwards decodes the newly-shown groups on
+      // demand, which is the ordinary path and works.
+      // Two scopes, named for what they get you rather than for how much work
+      // they are. Exemplars is what review actually needs — every group becomes
+      // openable without waiting. Every member only pays off if you expect to
+      // expand many groups, which most reviews will not.
+      let sources;
+      if (scope === "exemplars") {
+        sources = sourcesFor(state.groups.flatMap((g) => exemplarsOf(g)), { exact: true });
+      } else {
+        // Still exemplars-first, so a run stopped part-way leaves every group
+        // openable rather than a prefix of them fully done.
+        const exemplarKeys = new Set(
+          state.groups.flatMap((g) => exemplarsOf(g)).map((i) => cropKey(i.det_ref)));
+        const all = sourcesFor(state.groups.flatMap((g) => g.instances));
+        const carriesExemplar = (src) => src.items.some((it) => exemplarKeys.has(it.key));
+        sources = [...all.filter(carriesExemplar), ...all.filter((s) => !carriesExemplar(s))];
+      }
+      if (!sources.length) { renderPrecompute("Every crop is already cached."); return; }
+      Object.assign(precompute, {
+        running: true, cancelled: false, done: 0, crops: 0,
+        total: sources.length, t0: performance.now(),
+      });
+      // The first clip of each codec carries the probe. It is the only moment
+      // the reviewer is asked to wait for something they did not ask for, so it
+      // is the only moment we say anything about it.
+      renderPrecompute(state.frameRateByImageIndex.size ? "Optimizing for this device…" : undefined);
+      tuner.start();
+
+      let cursor = 0, stopped = null, reclaimed = 0;
+      const drain = async () => {
+        while (cursor < sources.length && !precompute.cancelled) {
+          // Cache pressure: first reclaim crops whose detection has already been
+          // judged. Those have done their job, so a review running alongside the
+          // pass keeps making room for it. Only give up when that frees nothing —
+          // past there the pass would evict results nobody has looked at yet.
+          if (cropCache.bytes > CACHE_HIGH_WATER) {
+            reclaimed += cropCache.evictTo(CACHE_HIGH_WATER * 0.8, { decidedOnly: true });
+            if (cropCache.bytes > CACHE_HIGH_WATER) { stopped = "cache"; break; }
+          }
+          const s = sources[cursor++];
+          // Review may have decoded this source in the meantime.
+          const items = s.items.filter((it) => !cropCache.has(it.key));
+          if (items.length) {
+            const batch = await decodeSourceLimited(s.src, items, true);
+            let made = 0;
+            for (const r of batch?.results || []) {
+              if (!r.blob) continue;
+              const url = URL.createObjectURL(r.blob);
+              cropCache.set(r.key, url, r.blob.size);
+              fillTile(r.key, url); // a no-op unless that tile happens to be on screen
+              precompute.crops++; made++;
+            }
+            tuner.credit(made, VIDEO_RE.test(s.src.name));
+          }
+          precompute.done++;
+          renderPrecompute();  // takes over from the "optimizing" note
+        }
+      };
+      // One drain per possible slot; the limiter decides how many actually run,
+      // so the tuner can raise bgLimit mid-pass without respawning anything.
+      await Promise.all(Array.from({ length: CONCURRENCY_CAP }, drain));
+      tuner.stop();
+
+      const mins = (performance.now() - precompute.t0) / 60000;
+      const { done, total, crops } = precompute;
+      precompute.running = false;
+      const what = precompute.scope === "exemplars" ? "exemplar" : "media";
+      const cached = `${crops.toLocaleString()} crops · ${fmtMB(cropCache.bytes)} MB`
+        + (reclaimed ? `, ${fmtMB(reclaimed)} MB of reviewed crops reclaimed` : "");
+      renderPrecompute(
+        stopped === "cache"
+          ? `Stopped at ${done.toLocaleString()}/${total.toLocaleString()} ${what} — the crop cache is full (${cached}). `
+            + `Review more groups and run it again: judged crops are dropped first.`
+          : precompute.cancelled
+            ? `Stopped at ${done.toLocaleString()}/${total.toLocaleString()} ${what} · ${cached}.`
+            : `All ${total.toLocaleString()} ${what} done in ${mins.toFixed(1)} min · ${cached}.`);
+      console.log(`[rde] precompute: bg concurrency ${bgLimit}/${CONCURRENCY_CAP}, ` +
+        `${done}/${total} media, ${crops} crops, ` +
+        `${(cropCache.bytes / 1e6).toFixed(1)} MB in ${mins.toFixed(2)} min` +
+        (reclaimed ? `, reclaimed ${(reclaimed / 1e6).toFixed(1)} MB` : "") +
+        (stopped ? ` (stopped: ${stopped})` : precompute.cancelled ? " (cancelled)" : ""));
+    }
+
+    // ---- Exemplars: what a reviewer actually needs to see -------------------
+    // Upstream reviews ONE exemplar per repeated detection and confirms it is a
+    // rock. That is fast, but it is also where the method's own warning bites:
+    // animals sleep in front of cameras, and a camera facing a narrow trail sees
+    // real animals enter at the same spot again and again. One crop cannot tell
+    // those apart from a rock.
+    //
+    // So we show a handful chosen to disagree with each other if they can. Most
+    // groups are settled at a glance; the ambiguous ones get expanded. The group
+    // header's confidence range is the cue for which is which — a group whose top
+    // detection scores high is the one worth opening.
+    const EXEMPLARS = 6;
+    const BY_CONFIDENCE = 3; // of those, how many come from the top of the ranking
+
+    function exemplarsOf(group) {
+      const all = group.instances;
+      if (all.length <= EXEMPLARS) return all;
+
+      // Half by confidence, half by spread, because the two ways this goes wrong
+      // need different evidence.
+      //
+      // Upstream takes the top N by confidence outright ("a sample image for the
+      // detection, plus the top N additional detections"). That is the stronger
+      // answer to its own warning: an animal that keeps walking the same trail
+      // scores HIGH, so the most animal-like members are exactly where it shows
+      // up. Ranking alone, though, tends to return near-duplicates — the same
+      // clip, the same hour, the same light.
+      const byConfidence = [...all].sort((a, b) => b.conf - a.conf);
+      const picked = byConfidence.slice(0, BY_CONFIDENCE);
+      const taken = new Set(picked.map((i) => i.det_ref.image_index));
+
+      // The rest spread across sources and across the run. A rock's appearances
+      // look identical to each other; what differs is the camera having shifted
+      // or the light having changed, and that is where something real turns up.
+      // The json carries no timestamps (only `file`), so document order stands in
+      // for time — camera files are named in sequence, so it usually is.
+      const byMedium = new Map();
+      for (const inst of all) {
+        const key = inst.det_ref.image_index;
+        if (taken.has(key)) continue;
+        const best = byMedium.get(key);
+        if (!best || inst.conf > best.conf) byMedium.set(key, inst);
+      }
+      const media = [...byMedium.keys()].sort((a, b) => a - b);
+      const want = Math.min(EXEMPLARS - picked.length, media.length);
+      for (let i = 0; i < want; i++) {
+        const at = want === 1 ? media.length >> 1 : Math.round((i * (media.length - 1)) / (want - 1));
+        const inst = byMedium.get(media[at]);
+        if (inst && !picked.includes(inst)) picked.push(inst);
+      }
+      // One long clip can be the whole group; then spread within it instead.
+      if (picked.length < EXEMPLARS) {
+        const rest = all.filter((i) => !picked.includes(i));
+        const step = Math.max(1, Math.floor(rest.length / (EXEMPLARS - picked.length)));
+        for (let i = 0; i < rest.length && picked.length < EXEMPLARS; i += step) picked.push(rest[i]);
+      }
+      return picked;
+    }
+
+    /// What this group is currently showing — exemplars, or everything.
+    function visibleInstances(group) {
+      return group && !group._expanded ? exemplarsOf(group) : (group ? group.instances : []);
+    }
+
+    // Mark which groups may still decode. Crops are NOT dropped here — the LRU
+    // owns memory now, so a revisited group (37% of clips recur across groups)
+    // repaints from cache instead of re-decoding.
+    function setActiveGroups(keep) {
+      const keepSet = new Set(keep.filter(Boolean));
+      for (const g of state.groups) g._active = keepSet.has(g);
+    }
+
+    function setBuffering(done, total) {
+      const bar = $("buffer-bar"), wrap = $("buffer"), lab = $("buffer-label");
+      if (!bar || !wrap) return;
+      const pct = total ? Math.round(done / total * 100) : 100;
+      bar.style.width = pct + "%";
+      const ready = !total || done >= total;
+      wrap.classList.toggle("done", ready);
+      lab.textContent = ready ? (total ? "buffered" : "") : `buffering ${done}/${total}`;
+    }
+
+    function markTile(tile, cls, label) {
+      tile._drawn = true; // don't retry
+      tile.classList.add("mark-" + cls);
+      const s = document.createElement("span");
+      s.className = "tilemark";
+      s.textContent = label;
+      tile.appendChild(s);
+    }
+
+    // ---- Review rendering: one group at a time, mouse + keyboard -------------
+    // The whole set (18k tiles / 227 groups) never renders at once. Only the
+    // current group is in the DOM; Next/Prev navigate, its crops are prefetched
+    // (batched by source) and the *next* group is prefetched in the background so
+    // advancing is instant. Fast loop: ← → to move, Space to keep a real animal,
+    // Enter to advance. Default is Remove, so you only mark the few real ones.
+    let currentIndex = 0;   // index into state.groups of the group on screen
+    let focusIndex = 0;     // which crop the preview and `f` follow — not drawn
+    let currentGrid = null; // the current group's tile grid element
+    const currentGroup = () => state.groups[currentIndex] || null;
+
+    function goToGroup(i, focus = 0) {
+      if (!state.groups.length) return;
+      currentIndex = Math.max(0, Math.min(state.groups.length - 1, i));
+      focusIndex = focus;
+      renderCurrent();
+      const g = currentGroup();
+      const next = state.groups[currentIndex + 1] || null;
+      setActiveGroups([g, next]);    // only these may decode; the LRU keeps the crops
+      paintBuffer(g);                // show its real progress even if already in flight
+      prefetchGroup(g);              // current: fills tiles
+      prefetchGroup(next);           // next: decoded ahead
+    }
+
+    // "I have looked at this group": commit the standing decision for every crop
+    // still unjudged (the default is Remove, so this is the usual "the rest are
+    // all false positives"). That is what makes the group read as reviewed — the
+    // state is derived from its members, so there is nothing else to set.
+    //
+    // Deliberately NOT what Prev/Next do. Those are literal movement, so you can
+    // look around without your looking being recorded as a judgement; this is the
+    // review loop, and committing is the whole point of pressing it.
+    function markReviewedAndNext() {
+      const g = currentGroup();
+      if (g) {
+        for (const inst of g.instances) if (!inst.decided) decide(inst, inst.decision);
+        updateExportBar();
+      }
+      const next = nextNeedingReview(currentIndex);
+      if (next >= 0) { goToGroup(next); return; }
+      // Nothing further needs review. Stay put — silently jumping to the next
+      // index would look identical to "there was more to do".
+      renderCurrent();
+      const behind = state.groups.findIndex((x) => groupProgress(x).state !== "reviewed");
+      status.textContent = behind >= 0
+        ? `Nothing after this one needs review — ${state.groups.length - behind} group(s) earlier still do.`
+        : "Every group is reviewed.";
+    }
+
+    // Only ever forwards, and only groups that still need attention: after a
+    // re-cluster plenty of groups arrive already decided by inheritance.
+    function nextNeedingReview(from) {
+      for (let i = from + 1; i < state.groups.length; i++) {
+        if (groupProgress(state.groups[i]).state !== "reviewed") return i;
+      }
+      return -1;
+    }
+
+    function renderCurrent() {
+      tileByKey.clear();
+      currentGrid = null;
+      const results = $("results");
+      results.innerHTML = "";
+      if (!state.groups.length) {
+        results.innerHTML = `<div class="card placeholder">No candidate groups at these parameters — loosen the occurrence threshold or the clustering settings above.</div>`;
+        return;
+      }
+      const g = currentGroup();
+
+      const card = document.createElement("div");
+      card.className = "card group";
+
+      const head = document.createElement("div");
+      head.className = "group-head";
+      head.innerHTML =
+        `<h3>${escHtml(g.camera)} · category ${escHtml(g.category)}</h3>` +
+        `<span class="meta"></span>`;
+      const actions = document.createElement("span");
+      actions.className = "actions";
+      // Prev/Next are literal — group n-1 and n+1, no decisions recorded — so
+      // looking around is free. The review loop is its own button.
+      const prev = mini("◀ Prev", () => goToGroup(currentIndex - 1));
+      prev.disabled = currentIndex === 0;
+      const next = mini("Next ▶", () => goToGroup(currentIndex + 1));
+      next.disabled = currentIndex >= state.groups.length - 1;
+      actions.append(prev, next);
+      // Named with the count, because one click here decides for members the
+      // reviewer has not seen — that is the point of group-first review, and it
+      // should be stated rather than implied.
+      const n = g.instances.length;
+      actions.appendChild(mini(`Keep all ${n}`, () => setGroupDecision(g, "Keep")));
+      actions.appendChild(mini(`Remove all ${n}`, () => setGroupDecision(g, "Remove")));
+      const loop = mini("Done · next unreviewed ▶", markReviewedAndNext, "primary");
+      loop.title = "Commit the standing decision for every crop still unjudged here, "
+        + "then go to the next group that needs review (Enter)";
+      actions.appendChild(loop);
+      head.appendChild(actions);
+      card.appendChild(head);
+
+      // buffer bar for the current group's crops
+      card.insertAdjacentHTML("beforeend",
+        `<div class="buffer" id="buffer"><div class="buffer-track"><div class="buffer-bar" id="buffer-bar"></div></div><span class="buffer-label" id="buffer-label"></span></div>`);
+
+      const grid = document.createElement("div");
+      grid.className = "tiles";
+      currentGrid = grid;
+      const shown = visibleInstances(g);
+      for (const inst of shown) grid.appendChild(makeTile(inst));
+      card.appendChild(grid);
+      if (shown.length < g.instances.length) {
+        const more = document.createElement("button");
+        more.className = "mini expand";
+        more.textContent = `Show all ${g.instances.length.toLocaleString()} members`;
+        more.title = "These six are spread across the whole run. Open the rest if this group looks like it could be a real animal.";
+        more.addEventListener("click", () => {
+          g._expanded = true;
+          renderCurrent();
+          prefetchGroup(g);
+        });
+        card.appendChild(more);
+      }
+      results.appendChild(card);
+      refreshGroupHeader();
+      $("results").parentElement.scrollTop = 0; // top of the list on each group
+      applyFocus();
+    }
+
+    // ● ○ ◐ are three different glyphs from three different Unicode blocks and
+    // most fonts draw them at three different sizes, so the mark jumped as a
+    // group's state changed. Drawn instead as one shape with a variable fill.
+    const REVIEW_MARK = { reviewed: 1, partial: 0.5, unreviewed: 0 };
+    function reviewMark(state) {
+      const fill = REVIEW_MARK[state];
+      const inner = fill === 1
+        ? '<circle cx="8" cy="8" r="5"/>'
+        : fill === 0.5
+          ? '<path d="M8 3a5 5 0 0 0 0 10z"/>'
+          : "";
+      return `<svg class="mark" viewBox="0 0 16 16" aria-hidden="true">`
+        + `<circle cx="8" cy="8" r="5" fill="none" stroke="currentColor" stroke-width="1.6"/>`
+        + inner + `</svg>`;
+    }
+
+    // Review state is derived, so the header has to be recomputed whenever a
+    // decision lands — not only on navigation. Rewrites the meta line in place so
+    // judging a crop never re-renders (and re-decodes) the tiles.
+    function refreshGroupHeader() {
+      const g = currentGroup();
+      const meta = document.querySelector("#results .group-head .meta");
+      if (!g || !meta) return;
+      const progress = groupProgress(g);
+      // How big this group is, and how much of it you are looking at. The tile
+      // grid shows exemplars, so without this the six on screen read as the whole
+      // group — and a "Remove all" would be a decision about a number the
+      // reviewer never saw. The across-groups tally that used to sit here is the
+      // REVIEWED metric above, and repeating it crowded out the size.
+      const shown = visibleInstances(g).length;
+      const size = `${progress.total.toLocaleString()} member${progress.total === 1 ? "" : "s"}` +
+        (shown < progress.total ? `, showing ${shown}` : "");
+      const stateText = progress.state === "reviewed" ? "reviewed"
+        : progress.state === "partial" ? `${progress.decided}/${progress.total} judged`
+        : "unreviewed";
+      meta.innerHTML = reviewMark(progress.state) + escHtml(
+        ` Group ${currentIndex + 1}/${state.groups.length}` +
+        ` · ${size} · ${stateText}` +
+        ` · conf ${g.stats.conf_min.toFixed(2)}–${g.stats.conf_max.toFixed(2)}` +
+        ` · box [${g.rep_bbox.map((v) => v.toFixed(3)).join(", ")}]`);
+      const card = meta.closest(".group");
+      if (card) card.classList.toggle("done", progress.state === "reviewed");
+    }
+
+    // ---- Focus + keyboard ----------------------------------------------------
+    /// Crops are chosen with the mouse now, so there is no cursor to draw — this
+    /// only decides which one the preview shows when a group opens, and which
+    /// one `f` acts on if the pointer is elsewhere.
+    function applyFocus() {
+      if (!currentGrid || !currentGrid.children.length) return;
+      focusIndex = Math.max(0, Math.min(currentGrid.children.length - 1, focusIndex));
+      setPreview(currentGrid.children[focusIndex]._instance);
+    }
+
+    document.addEventListener("keydown", (e) => {
+      if (!state.groups.length || /^(INPUT|TEXTAREA|BUTTON)$/.test(e.target.tagName)) return;
+      switch (e.key) {
+        // Review is group-first now: a group shows a handful of exemplars, and
+        // the arrows are worth more moving between groups than between six tiles.
+        case "ArrowRight": goToGroup(currentIndex + 1); break;
+        case "ArrowLeft": goToGroup(currentIndex - 1); break;
+        case "Enter": case "n": markReviewedAndNext(); break;
+        case "[": case "p": goToGroup(currentIndex - 1); break;
+        case "]": goToGroup(currentIndex + 1); break;
+        case "f": { // toggle between the clip's first frame and this detection's own
+          setExactFrame(!exactFrame);
+          // Redraw whatever the panel is showing — that may be a hovered tile,
+          // and hovering does not move the keyboard focus.
+          const instance = previewInstance || currentGrid?.children[focusIndex]?._instance;
+          if (instance) drawPreview(instance);
+          break;
+        }
+        case "k": setGroupDecision(currentGroup(), "Keep"); break;
+        case "d": setGroupDecision(currentGroup(), "Remove"); break;
+        default: return;
+      }
+      e.preventDefault();
+    });
+
+    function makeTile(instance) {
+      const tile = document.createElement("div");
+      // Keep or drop, and nothing else. A tile has one edge, and it once had
+      // three outlines competing for it.
+      tile.className = "tile " + (instance.decision === "Keep" ? "keep" : "remove");
+      tile._instance = instance;
+      tile.title = state.imageFiles?.[instance.det_ref.image_index] || ""; // hover: source path
+      const key = cropKey(instance.det_ref);
+      tileByKey.set(key, tile);
+      tile.insertAdjacentHTML("beforeend",
+        `<span class="badge">${instance.decision === "Keep" ? "keep" : "drop"}</span>` +
+        `<span class="conf">${instance.conf.toFixed(2)}</span>`);
+      tile.addEventListener("click", () => toggleDecision(instance, tile));
+      tile.addEventListener("mouseenter", () => {
+        setPreview(instance);
+        const at = [...(currentGrid?.children || [])].indexOf(tile);
+        if (at >= 0) focusIndex = at; // so `f` acts on what the eye is on
+      });
+      // Fill from cache if already decoded; else mark video (known from the path)
+      // or missing; else leave a placeholder for prefetchGroup to fill. In FSA
+      // mode a missing image is only known once resolution fails, so we don't
+      // pre-mark "no image" there.
+      const path = state.imageFiles?.[instance.det_ref.image_index];
+      if (cropCache.has(key)) fillTile(key, cropCache.get(key));
+      else if (path && VIDEO_RE.test(path) && videoBlocker(path, instance))
+        markTile(tile, "video", "▶ " + videoBlocker(path, instance));
+      else if (state.folderLoaded && state.folderMode === "files" && !state.fileByImageIndex.has(instance.det_ref.image_index))
+        markTile(tile, "unmatched", "not found");
+      return tile;
+    }
+
+    function mini(label, onClick, cls) {
+      const b = document.createElement("button");
+      b.className = "mini" + (cls ? " " + cls : "");
+      b.textContent = label;
+      b.tabIndex = -1;
+      b.addEventListener("mousedown", (e) => e.preventDefault()); // don't steal keyboard focus
+      b.addEventListener("click", onClick);
+      return b;
+    }
+
+    // ---- Context preview: full frame + red box, decoded on demand ------------
+    // Keep the preview canvas modest: it's a ~400px sticky panel, and a big
+    // canvas is expensive to re-composite every scroll frame under software
+    // rendering. 720 covers a HiDPI panel with margin.
+    const PREVIEW_W = 720;
+    let previewToken = 0;
+    let previewTimer = 0;
+    // Don't decode/redraw the preview while the user is scrolling: scrolling
+    // drags tiles under a stationary cursor, firing a storm of `mouseenter`s —
+    // decoding a full frame off the HDD for each would jank the scroll.
+    let scrolling = false, scrollIdle = 0;
+    // Capture phase catches scroll on the inner .review scroller (scroll doesn't bubble).
+    document.addEventListener("scroll", () => {
+      scrolling = true;
+      clearTimeout(scrollIdle);
+      scrollIdle = setTimeout(() => { scrolling = false; }, 160);
+    }, { passive: true, capture: true });
+    // Decoded frames, keyed by media + frame. A preview costs a whole re-read and
+    // re-demux of the clip (~42 MB for one frame), so hovering back over a tile,
+    // or over a second box on the same frame — common, since a group is boxes that
+    // recur — should not pay it twice. Bitmaps are ~1.5 MB at this width, so the
+    // budget is deliberately small; eviction closes them.
+    const PREVIEW_CACHE_MAX = 16;
+    const previewCache = new Map(); // "image_index:frame" -> ImageBitmap (LRU order)
+    const previewKey = (instance) =>
+      instance.det_ref.image_index + ":" + (previewFrameOf(instance) ?? "still");
+    function previewGet(key) {
+      const bitmap = previewCache.get(key);
+      if (!bitmap) return null;
+      previewCache.delete(key);
+      previewCache.set(key, bitmap); // most recently used
+      return bitmap;
+    }
+    function previewPut(key, bitmap) {
+      if (previewCache.has(key)) previewCache.get(key).close();
+      previewCache.set(key, bitmap);
+      for (const oldest of previewCache.keys()) {
+        if (previewCache.size <= PREVIEW_CACHE_MAX) break;
+        previewCache.get(oldest).close();
+        previewCache.delete(oldest);
+      }
+    }
+    function clearPreviewCache() {
+      for (const bitmap of previewCache.values()) bitmap.close();
+      previewCache.clear();
+    }
+
+    // Which frame the panel shows for a video. Frame 0 is a keyframe, so it costs
+    // ONE decode; the detection's own frame can sit 160 frames past the last
+    // keyframe and cost ~40x more (measured 65 ms vs 2711 ms). The suspicious box
+    // is in the same place on every frame of a group by construction, so frame 0
+    // answers "what is this thing?" just as well. `x` loads the exact frame when
+    // the moment matters.
+    let exactFrame = false;
+    /// The switch and the `f` key are two ways to the same state, so neither may
+    /// set it directly.
+    function setExactFrame(on) {
+      exactFrame = on;
+      $("exact-frame").checked = on;
+    }
+    $("exact-frame").addEventListener("change", (e) => {
+      setExactFrame(e.target.checked);
+      const instance = previewInstance || currentGrid?.children[focusIndex]?._instance;
+      if (instance) drawPreview(instance);
+    });
+    let previewInstance = null; // what the panel is currently showing
+    function previewFrameOf(instance) {
+      if (instance.frame_number === undefined) return undefined; // a still
+      return exactFrame ? instance.frame_number : 0;
+    }
+
+    function setPreview(instance) {
+      clearTimeout(previewTimer);
+      // A cached frame needs no decode, so skip the settle delay entirely — that
+      // is what makes hovering along a row feel immediate.
+      if (previewCache.has(previewKey(instance))) { drawPreview(instance); return; }
+      previewTimer = setTimeout(() => { if (!scrolling) drawPreview(instance); }, 90); // settle + not mid-scroll
+    }
+    async function drawPreview(instance) {
+      const token = ++previewToken;
+      previewInstance = instance;
+      const ctx = previewCanvas.getContext("2d");
+      const src = sourceOf(instance.det_ref.image_index);
+      const path = state.imageFiles?.[instance.det_ref.image_index] || "";
+      const blank = (msg) => { previewCanvas.width = 400; previewCanvas.height = 220; ctx.fillStyle = cssVar("--bg-alt"); ctx.fillRect(0, 0, 400, 220); previewMeta.textContent = msg; };
+      // Distinguish "no folder yet" from "this media did not resolve" — conflating
+      // them sends the reviewer looking for the wrong problem.
+      if (!state.folderLoaded) { blank("Load the image folder to see the whole picture this crop came from."); return; }
+      if (!src) {
+        blank(`Not found in the picked folder:\n${path || "(no path in the json)"}`);
+        return;
+      }
+      const isVideo = VIDEO_RE.test(path);
+      if (isVideo && !decodableVideo(path, instance)) {
+        blank(hasWebCodecs
+          ? `Can't decode ${path.split(".").pop().toLowerCase()} in the browser — pre-extract frames with ffmpeg.`
+          : "This browser cannot decode video frames. Video crops will stay blank; images are unaffected.");
+        return;
+      }
+      // For video, decode a frame of this clip (SPEC §7) — frame 0 unless the
+      // reviewer asked for the exact one.
+      const frameNumber = previewFrameOf(instance);
+      const key = previewKey(instance);
+      let bitmap = previewGet(key);
+      if (!bitmap) {
+        const res = await mediaDecode("frame", src, isVideo ? { frameNumber } : null);
+        if (!res || !res.bitmap) {
+          if (token === previewToken) blank("This file could not be read.");
+          return;
+        }
+        // Cache even if a newer hover won the race: the decode is already paid
+        // for, and the user is likely to come back to this tile.
+        previewPut(key, res.bitmap);
+        if (token !== previewToken) return;
+        bitmap = res.bitmap;
+      }
+      const scale = Math.min(1, PREVIEW_W / bitmap.width);
+      const cw = Math.round(bitmap.width * scale), chh = Math.round(bitmap.height * scale);
+      previewCanvas.width = cw; previewCanvas.height = chh;
+      ctx.drawImage(bitmap, 0, 0, cw, chh);
+
+      // Everything the detector found on this frame, not just the box under
+      // review: a suspicious box sitting on top of a real animal is the case that
+      // is hardest to judge, and the animal's box is in no group so clustering
+      // never shows it.
+      const others = await detectionsOf(instance.det_ref.image_index);
+      if (token !== previewToken) return;
+      const line = Math.max(2, cw / 240);
+      ctx.font = `${Math.max(11, Math.round(cw / 46))}px system-ui, sans-serif`;
+      ctx.textBaseline = "bottom";
+      const group = state.groupByDet.get(detKey(instance.det_ref));
+      let safe = 0, elsewhere = 0;
+      for (const det of others) {
+        if (det.detection_index === instance.det_ref.detection_index) continue;
+        // On a video only boxes from the frame on screen belong on it.
+        if (frameNumber !== undefined && det.frame_number !== frameNumber) continue;
+        const owner = state.groupByDet.get(detKey({ image_index: instance.det_ref.image_index, detection_index: det.detection_index }));
+        // A sibling candidate in THIS group sits on the same location by
+        // construction — drawing it just doubles the box under review.
+        if (owner && owner === group) continue;
+        // The point of these boxes is to show what RDE will NOT remove, so a
+        // detection that is itself a candidate must not look like a survivor.
+        const candidate = !!owner;
+        if (candidate) elsewhere++; else safe++;
+        // Four things can share a frame and they are not interchangeable: a
+        // candidate under review in another group, an animal RDE will leave
+        // alone, and a person or vehicle that was never in scope. Colour says
+        // which; a dashed grey box for all three did not.
+        const animal = (state.categoryNames[det.category] || det.category) === "animal"
+          || det.category === "1";
+        const colour = candidate ? "--box-other-group" : animal ? "--box-keep" : "--box-other-class";
+        const [dx, dy, dw, dh] = det.bbox;
+        ctx.lineWidth = line;
+        ctx.strokeStyle = cssVar(colour);
+        ctx.setLineDash(candidate ? [6, 4] : []);
+        ctx.strokeRect(dx * cw, dy * chh, dw * cw, dh * chh);
+        ctx.setLineDash([]);
+        const label = `${state.categoryNames[det.category] || det.category} ${det.conf.toFixed(2)}`
+          + (candidate ? " · other group" : "");
+        const pad = 3, tw = ctx.measureText(label).width + pad * 2;
+        const th = parseInt(ctx.font, 10) + pad;
+        ctx.fillStyle = cssVar(colour);
+        ctx.fillRect(dx * cw, Math.max(th, dy * chh) - th, tw, th);
+        ctx.fillStyle = "#10261c";
+        ctx.fillText(label, dx * cw + pad, Math.max(th, dy * chh) - 1);
+      }
+
+      // The box under review, drawn last so it is never covered.
+      const [x, y, w, h] = instance.bbox;
+      ctx.lineWidth = line * 1.5; ctx.strokeStyle = cssVar("--box-current");
+      ctx.strokeRect(x * cw, y * chh, w * cw, h * chh);
+
+      const shown = frameNumber === undefined ? ""
+        : frameNumber === instance.frame_number
+          ? ` · frame ${frameNumber} (this detection)`
+          : ` · frame ${frameNumber} — press f for this detection's frame ${instance.frame_number}`;
+      // Say what the other boxes mean, since that is the whole reason to draw them.
+      const context = safe || elsewhere
+        ? `\n${safe ? `${safe} other detection(s) here RDE will keep` : ""}` +
+          `${safe && elsewhere ? " · " : ""}` +
+          `${elsewhere ? `${elsewhere} candidate(s) under review in another group` : ""}`
+        : "\nNo other detections on this frame.";
+      previewMeta.innerHTML =
+        `<b>${instance.decision === "Keep" ? "KEEP" : "will drop"}</b> · conf ${instance.conf.toFixed(2)}${escHtml(shown)}` +
+        `${escHtml(context)}<br>${escHtml(path)}`;
+    }
+
+    // Detections per media, memoised — the document is immutable, so this is
+    // asked once per media however often the panel redraws.
+    const detectionsCache = new Map();
+    async function detectionsOf(imageIndex) {
+      let entry = detectionsCache.get(imageIndex);
+      if (!entry) {
+        entry = call("detections", { imageIndex }).then((r) => JSON.parse(r.detections)).catch(() => []);
+        detectionsCache.set(imageIndex, entry);
+      }
+      return entry;
+    }
+    const escHtml = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+    // ---- Decisions -----------------------------------------------------------
+    function applyTileStyle(tile, decision) {
+      const keep = decision === "Keep";
+      tile.classList.toggle("keep", keep);
+      tile.classList.toggle("remove", !keep);
+      tile.querySelector(".badge").textContent = keep ? "keep" : "drop";
+    }
+    // Every explicit judgement is recorded against its DetRef, which is stable
+    // across re-clustering (SPEC §6.1). Parameters are a way of *looking* at the
+    // document; a human decision about a detection outlives them.
+    // Group-level actions resolve to DetRef decisions too — nothing is ever
+    // recorded against a group, so the group is free to split, merge or vanish on
+    // the next re-cluster without losing the judgement. `round` is provenance for
+    // history and statistics; it plays no part in correctness.
+    function decide(instance, decision) {
+      instance.decision = decision;
+      instance.decided = true;
+      state.decisions.set(detKey(instance.det_ref), { decision, at: Date.now(), round: state.round });
+    }
+    function toggleDecision(instance, tile) {
+      decide(instance, instance.decision === "Keep" ? "Remove" : "Keep");
+      applyTileStyle(tile, instance.decision);
+      setPreview(instance);
+      updateExportBar();
+    }
+    function setGroupDecision(group, decision) {
+      group.instances.forEach((i) => decide(i, decision));
+      // Restyle tiles in place if this is the group on screen (no re-decode).
+      if (group === currentGroup() && currentGrid) {
+        [...currentGrid.children].forEach((tile) => applyTileStyle(tile, decision));
+      }
+      updateExportBar();
+    }
+
+    // ---- Export --------------------------------------------------------------
+    // What gets removed: every candidate the reviewer left at the default Remove,
+    // plus any detection they explicitly removed that a later parameter change
+    // pushed out of the candidate set. An explicit judgement stays authoritative —
+    // it should not evaporate because the clustering was retuned afterwards.
+    function removalRefs() {
+      const refs = [];
+      const seen = new Set();
+      // Upstream RDE removes every flagged detection unless it is rescued, so
+      // "include unreviewed" defaults on — but a half-finished review then removes
+      // candidates nobody looked at, which should be a choice, not a surprise.
+      const includeUnreviewed = $("export-unreviewed").checked;
+      for (const g of state.groups) {
+        for (const i of g.instances) {
+          if (i.decision !== "Remove") continue;
+          if (!i.decided && !includeUnreviewed) continue;
+          refs.push(i.det_ref);
+          seen.add(detKey(i.det_ref));
+        }
+      }
+      for (const [key, decision] of state.decisions) {
+        if (decision !== "Remove" || seen.has(key)) continue;
+        const [image_index, detection_index] = key.split(":").map(Number);
+        refs.push({ image_index, detection_index });
+      }
+      return refs;
+    }
+    function updateExportBar() {
+      const n = removalRefs().length;
+      const p = reviewProgress();
+      // Says what leaves the file and what state the review is in. The old
+      // wording put two different counts of "detections" and "candidates" beside
+      // each other, which read as one number contradicting itself.
+      $("export-summary").textContent = state.fileName
+        ? `Export drops ${n.toLocaleString()} detection(s) from ${state.fileName}` +
+          (p.pending
+            ? `, ${$("export-unreviewed").checked ? "including" : "excluding"} the ` +
+              `${p.pending.toLocaleString()} you have not reviewed yet.`
+            : ` — every candidate reviewed.`)
+        : "No document loaded.";
+      $("export-btn").disabled = !state.fileName;
+      $("session-save").disabled = !state.fileName;
+      renderStats();         // review progress moves with every decision
+      refreshGroupHeader();
+    }
+    $("export-btn").addEventListener("click", async () => {
+      try {
+        const { bytes } = await call("export", { removeRefs: JSON.stringify(removalRefs()) });
+        const blob = new Blob([bytes], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = (state.fileName?.replace(/\.json$/i, "") || "md") + "_rde.json";
+        a.click();
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        showError(err);
+      }
+    });
+
+    // ---- Review session ------------------------------------------------------
+    // SPEC §2.5/§6.1: the session file is just the set of DetRef + decision, so it
+    // round-trips against the same original document later. A review of 18,000
+    // candidates is hours of work that until now existed only in memory.
+    //
+    // Decisions are keyed by *index* into the document, so restoring them onto a
+    // different document would silently mislabel detections. The identity check
+    // below is the whole safety story — it refuses rather than guesses.
+    const SESSION_FORMAT = 1;
+
+    function documentIdentity() {
+      return {
+        name: state.fileName,
+        images: Number($("m-images").textContent.replace(/,/g, "")) || 0,
+        detections: Number($("m-dets").textContent.replace(/,/g, "")) || 0,
+      };
+    }
+
+    function sessionJson() {
+      const decisions = [];
+      for (const [key, value] of state.decisions) {
+        const [image_index, detection_index] = key.split(":").map(Number);
+        decisions.push({ image_index, detection_index, ...value });
+      }
+      return JSON.stringify({
+        tool: "caracal-rde",
+        format: SESSION_FORMAT,
+        saved_at: new Date().toISOString(),
+        document: documentIdentity(),
+        options: state.options,
+        threshold: state.threshold,
+        round: state.round,
+        rounds: state.rounds,
+        decisions,
+      }, null, 1);
+    }
+
+    async function loadSession(text) {
+      const session = JSON.parse(text);
+      if (session.tool !== "caracal-rde" || !Array.isArray(session.decisions)) {
+        throw new Error("not a Caracal RDE review session");
+      }
+      if (session.format > SESSION_FORMAT) {
+        throw new Error(`session was written by a newer version (format ${session.format})`);
+      }
+      if (!state.fileName) throw new Error("load the MegaDetector .json first, then the session");
+      const here = documentIdentity(), there = session.document || {};
+      // Counts are the cheap proxy for "same document"; the indices mean nothing
+      // without it, so a mismatch is refused outright rather than guessed at.
+      if (there.images !== here.images || there.detections !== here.detections) {
+        throw new Error(
+          `this session belongs to a different document — it has ${(there.images ?? 0).toLocaleString()} media / ` +
+          `${(there.detections ?? 0).toLocaleString()} detections, this one has ${here.images.toLocaleString()} / ` +
+          `${here.detections.toLocaleString()}`);
+      }
+
+      state.decisions = new Map(session.decisions.map((d) => [
+        d.image_index + ":" + d.detection_index,
+        { decision: d.decision === "Keep" ? "Keep" : "Remove", at: d.at, round: d.round },
+      ]));
+      state.rounds = session.rounds || [];
+      state.round = session.round || 1;
+      if (session.threshold >= MIN_THRESHOLD) state.threshold = session.threshold;
+      const sameOptions = JSON.stringify(session.options) === JSON.stringify(state.options);
+      if (session.options) state.options = { ...state.options, ...session.options };
+
+      // Re-cluster only if the session was tuned differently from what is loaded.
+      if (sameOptions) applyThreshold(); else await recluster();
+      fillCameraLevels();
+      syncTuningControls();
+      syncTuneToggle();
+      renderStats();
+      resumeReview("");
+      const progress = reviewProgress();
+      status.textContent =
+        `Restored ${state.decisions.size.toLocaleString()} decision(s)` +
+        (there.name && there.name !== here.name ? ` saved from ${there.name}` : "") +
+        ` — ${progress.decided.toLocaleString()} of the current candidates are judged, ` +
+        `${progress.pending.toLocaleString()} still need review.`;
+    }
+
+    $("session-save").addEventListener("click", () => {
+      const blob = new Blob([sessionJson()], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = (state.fileName?.replace(/\.json$/i, "") || "rde") + "_session.json";
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    $("session-input").addEventListener("change", async (event) => {
+      const file = event.target.files?.[0];
+      event.target.value = ""; // so the same file can be picked twice
+      if (!file) return;
+      try {
+        await loadSession(await file.text());
+        updateExportBar();
+      } catch (err) {
+        showError(err);
+      }
+    });
+
+    $("export-unreviewed").addEventListener("change", updateExportBar);
+
+    // ---- Helpers -------------------------------------------------------------
+    function resetForNewJson(name) {
+      state.fileName = name;
+      state.groups = [];
+      state.allGroups = [];
+      state.decisions.clear();
+      state.round = 1;
+      state.rounds = [];
+      state.preview = null;
+      state.fileByImageIndex.clear();
+      state.frameRateByImageIndex.clear();
+      state.folderLoaded = false;
+      state.folderMode = "files";
+      // A pass over the previous document's media is worse than useless now.
+      if (precompute.running) precompute.cancelled = true;
+      $("precompute").hidden = true;
+      renderPrecompute("Decode crops ahead of time");
+      currentIndex = 0;
+      focusIndex = 0;
+      currentGrid = null;
+      clearCropCache();
+      clearPreviewCache();
+      detectionsCache.clear();
+      setExactFrame(false);
+      tileByKey.clear();
+      state.imageFiles = null;
+      $("tune").hidden = true;
+      $("tune-open").hidden = true;
+      iouSensitivity = null;
+      $("iou-table").textContent = "";
+      $("iou-compute").textContent = "Compute IoU sensitivity";
+      $("folder-fsa").classList.add("disabled");
+      $("folder-fsa").disabled = true;
+      errorEl.textContent = "";
+      $("results").innerHTML = "";
+    }
+    function showError(err) {
+      errorEl.textContent = String(err?.message || err);
+      status.textContent = "Something went wrong.";
+    }
+  </script>
+</body>
+</html>
