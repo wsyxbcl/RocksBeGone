@@ -87,6 +87,7 @@
       flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; position: relative; }
     h1 { font-size: 1.5rem; margin: 0 0 4px; }
     h2 { font-size: 1.05rem; margin: 0 0 10px; }
+    .lede a { color: var(--accent); text-underline-offset: 2px; }
     .lede { color: var(--muted); margin: 0 0 22px; }
     .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 18px; margin-bottom: 16px; }
     .row { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
@@ -388,7 +389,8 @@
         </a>
       </div>
     </header>
-    <p class="lede">Review repeat detections in MegaDetector results. Everything runs in your browser — your results and media never leave this machine.</p>
+    <p class="lede">Review repeat detections in MegaDetector results — see <a href="https://lila.science/repeat-detection-elimination" target="_blank" rel="noopener">repeat-detection elimination</a> for how the method works and when it misleads.<br />
+      Everything runs in your browser — your results and media never leave this machine.</p>
 
     <div class="sheet" id="shortcuts" hidden>
       <div class="sheet-head"><strong>Keyboard</strong><button class="icon" id="shortcuts-close" aria-label="Close">×</button></div>
@@ -581,7 +583,7 @@
     // ---- Worker RPC (SPEC §5.1): all wasm work runs off the UI thread. --------
     // Module workers cache hard; bump BUILD on any *-worker.js change so a plain
     // reload picks it up (no need to purge cache manually while iterating).
-    const BUILD = "2026-09-06i";
+    const BUILD = "2026-09-06j";
 
     // Canvas cannot read CSS variables, so anything drawn has to look them up.
     const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
