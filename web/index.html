@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Caracal RDE (experimental)</title>
+  <title>RocksBeGone</title>
   <style>
     /* One token set, two themes. Named for the role rather than the colour, so
        a rule never has to know which theme is active. */
@@ -583,7 +583,7 @@
     // ---- Worker RPC (SPEC §5.1): all wasm work runs off the UI thread. --------
     // Module workers cache hard; bump BUILD on any *-worker.js change so a plain
     // reload picks it up (no need to purge cache manually while iterating).
-    const BUILD = "2026-09-06j";
+    const BUILD = "2026-09-06k";
 
     // Canvas cannot read CSS variables, so anything drawn has to look them up.
     const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -1724,7 +1724,7 @@
     // picked directory *handle* and resolve each media's known json path lazily
     // in the Media Worker (no global file index, no ~12 s enumeration freeze).
     // Fallback: the hidden `webkitdirectory` <input> (other browsers, or when the
-    // FSA picker is blocked for lack of user activation — same issue Caracal hit).
+    // FSA picker is blocked for lack of user activation).
     async function alignDirectoryHandle(rootHandle) {
       status.textContent = `Linking “${rootHandle.name}” to the json paths…`;
       const suspicious = [...new Set(state.groups.flatMap((g) => g.instances.map((i) => i.det_ref.image_index)))];
@@ -1782,7 +1782,7 @@
       } catch (err) {
         if (err && err.name === "AbortError") return; // user dismissed the picker
         if (/already active/i.test(err?.message || "")) return; // a second click got through
-        // Blocked for lack of user activation (Caracal's picker issue) → fall back
+        // Blocked for lack of user activation → fall back
         // to the plain directory <input>, which has looser activation rules.
         if (err && (err.name === "SecurityError" || /user activation/i.test(err.message || ""))) {
           $("folder-input").click();
@@ -3043,7 +3043,7 @@
         decisions.push({ image_index, detection_index, ...value });
       }
       return JSON.stringify({
-        tool: "caracal-rde",
+        tool: "rocksbegone",
         format: SESSION_FORMAT,
         saved_at: new Date().toISOString(),
         document: documentIdentity(),
@@ -3057,8 +3057,12 @@
 
     async function loadSession(text) {
       const session = JSON.parse(text);
-      if (session.tool !== "caracal-rde" || !Array.isArray(session.decisions)) {
-        throw new Error("not a Caracal RDE review session");
+      // "caracal-rde" is what this tool was called before it was split out; a
+      // session saved then is still a valid session, and refusing it would lose
+      // someone's review over a rename.
+      const known = session.tool === "rocksbegone" || session.tool === "caracal-rde";
+      if (!known || !Array.isArray(session.decisions)) {
+        throw new Error("not a RocksBeGone review session");
       }
       if (session.format > SESSION_FORMAT) {
         throw new Error(`session was written by a newer version (format ${session.format})`);

@@ -1,4 +1,4 @@
-//! WASM bindings for the Caracal RDE reviewer (SPEC §5). Thin layer over
+//! WASM bindings for the RocksBeGone reviewer (SPEC §5). Thin layer over
 //! `rde-core`: parse MD json bytes, cluster suspicious groups, and export a
 //! removal mask on the original document. All heavy work is `rde-core`; this
 //! crate only crosses the JS boundary as bytes + small JSON DTOs (SPEC §5.1).

@@ -1,4 +1,4 @@
-//! Caracal RDE core — the repeat-detection-elimination algorithm, independent of
+//! RocksBeGone core — the repeat-detection-elimination algorithm, independent of
 //! browser/media I/O so it runs in WASM or natively (and is tested natively).
 //!
 //! It reproduces the reference `find` step in
