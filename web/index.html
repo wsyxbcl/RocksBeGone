@@ -139,6 +139,12 @@
     .setting-row > label { font-weight: 600; flex: 1; }
     .setting-row input[type="number"] { font: inherit; width: 4rem; padding: 4px 6px;
       border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); }
+    /* "Show all" makes the count moot. It was already disabled, but nothing said
+       so, which is worse than leaving it live — a box that silently ignores
+       typing reads as broken. */
+    .setting-row input:disabled { background: var(--bg-alt); color: var(--muted);
+      cursor: not-allowed; }
+    .setting-row.is-off > label { color: var(--muted); }
     .setting-check { display: flex; align-items: center; gap: 6px; margin-top: 8px;
       color: var(--muted); cursor: pointer; user-select: none; }
     .setting-check input { margin: 0; }
@@ -437,7 +443,7 @@
 
         <div class="setting">
           <div class="setting-row">
-            <label for="opt-exemplars">Crops per group</label>
+            <label for="opt-exemplars">Exemplars per group</label>
             <input type="number" id="opt-exemplars" min="2" max="60" step="1" />
             <button class="help" id="exemplars-help" aria-label="How these are chosen" title="How these are chosen">?</button>
           </div>
@@ -672,7 +678,7 @@
     // ---- Worker RPC (SPEC §5.1): all wasm work runs off the UI thread. --------
     // Module workers cache hard; bump BUILD on any *-worker.js change so a plain
     // reload picks it up (no need to purge cache manually while iterating).
-    const BUILD = "2026-09-07k";
+    const BUILD = "2026-09-07l";
     // Filled from the wasm once it is up — cargo already knows the version, and
     // a copy here would be a second thing to bump. Until then the build stamp
     // alone identifies the page.
@@ -741,6 +747,7 @@
       // "Show all" makes the count moot, so it stops accepting input
       // rather than sitting there looking as if it still decides something.
       $("opt-exemplars").disabled = settings.showAll;
+      $("opt-exemplars").closest(".setting-row").classList.toggle("is-off", settings.showAll);
       $("exact-frame").checked = settings.exactFrame;
       exactFrame = settings.exactFrame;
       $("settings-version").textContent =
