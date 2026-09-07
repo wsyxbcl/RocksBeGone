@@ -90,8 +90,22 @@
     .lede a { color: var(--accent); text-underline-offset: 2px; }
     .lede { color: var(--muted); margin: 0 0 22px; }
     .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 18px; margin-bottom: 16px; }
-    .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
-    .file { display: inline-block; border: 1px dashed var(--accent); color: var(--accent); background: none; font: inherit; border-radius: 8px; padding: 11px 16px; cursor: pointer; font-weight: 600; }
+    /* One line, and it shrinks rather than wraps: the three steps read as a
+       sequence, and a step that drops to its own line reads as a mistake. Only
+       the camera chip can give ground, and only down to a legible width. */
+    .row { display: flex; gap: 12px; flex-wrap: nowrap; align-items: center; }
+    @media (max-width: 700px) { .row { flex-wrap: wrap; } }
+    /* The three inputs are one sequence, so they share one shape and read their
+       state off the border: dashed is outstanding, solid is done. Only the step
+       that is actually actionable is filled, so where to click is never a
+       guess. */
+    .file { display: inline-flex; align-items: center; gap: 8px;
+      border: 1px dashed var(--accent); color: var(--accent); background: none;
+      font: inherit; border-radius: 8px; padding: 11px 16px; cursor: pointer; font-weight: 600; }
+    .file { flex: none; }
+    .file.is-todo { border-color: var(--line); color: var(--muted); opacity: 0.5; pointer-events: none; }
+    .file.is-next { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+    .file.is-done { border-style: solid; }
     .file.disabled, .file:disabled { opacity: 0.4; pointer-events: none; }
     label.file input { display: none; }
     /* Small, but there is no way to tell a stale cached worker from a real bug
@@ -131,10 +145,12 @@
     .metrics { display: flex; gap: 22px; margin-top: 14px; flex-wrap: wrap; }
     /* Which folder is a camera is a property of the dataset, settled once — so it
        sits with loading, not with the parameters you keep revisiting. */
-    /* In the button row now, so it aligns with the buttons rather than sitting
-       on its own baseline below them. */
-    .camera-setup { display: flex; align-items: center; gap: 7px; flex-wrap: nowrap; }
-    .camera-setup > label { font-size: 0.82rem; font-weight: 600; }
+    /* Wears the same chip as the two buttons, but it is a setting rather than an
+       action: the whole chip is not clickable, only the select inside it. */
+    .camera-setup { cursor: default; flex-wrap: nowrap; min-width: 0; flex-shrink: 1; }
+    /* The label holds its line; the select is what gives ground, since a
+       truncated folder name stays readable and a two-line chip does not. */
+    .camera-setup > label { font-weight: 600; cursor: pointer; white-space: nowrap; flex: none; }
     .camera-setup[hidden] { display: none; }
     .camera-setup .warn { color: var(--accent); font-weight: 600; }
     /* Its own line, so opening the list expands downward instead of reflowing
@@ -165,8 +181,14 @@
       font-size: 0.82rem; color: var(--muted); line-height: 1.5; }
     .precompute { position: relative; }
     .precompute[hidden] { display: none; }
-    .camera-setup select { font: inherit; font-size: 0.82rem; padding: 3px 6px; max-width: 140px;
-      border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); }
+    /* Sits inside the chip's border, so it gets a fill rather than a second
+       outline — nested borders made the row look like a form, not a step. */
+    .camera-setup select { font: inherit; font-size: 0.86rem; font-weight: 600;
+      padding: 3px 4px 3px 6px; min-width: 4.5rem; border: 1px solid transparent;
+      border-radius: 6px; background: var(--field); color: var(--ink); cursor: pointer;
+      flex: 0 1 auto; text-overflow: ellipsis; }
+    .camera-setup select:hover { border-color: var(--line); }
+    .camera-setup.is-todo select { background: none; }
     /* The card had a large empty right half; put the current parameters there and
        make the whole block the way in to tuning. */
     .camera-detail { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
@@ -413,12 +435,12 @@
            it decides how detections are grouped, so it wants confirming against
            the real folder names before media is loaded, not after. -->
       <div class="row">
-        <label class="file">1 · Load MegaDetector .json<input id="json-input" type="file" accept=".json,application/json" /></label>
-        <div class="camera-setup" id="camera-setup" hidden>
+        <label class="file is-next" id="step-json">1 · Load MegaDetector .json<input id="json-input" type="file" accept=".json,application/json" /></label>
+        <div class="file camera-setup is-todo" id="camera-setup">
           <label for="opt-camlevel">2 · Camera folder</label>
-          <select id="opt-camlevel"></select>
+          <select id="opt-camlevel"><option>—</option></select>
         </div>
-        <button class="file disabled" id="folder-fsa">3 · Load media folder</button>
+        <button class="file is-todo" id="folder-fsa">3 · Load media folder</button>
         <!-- Fallback picker: hidden, triggered programmatically when the File System Access picker is unavailable or blocked (user-activation). -->
         <input id="folder-input" type="file" webkitdirectory directory multiple hidden />
       </div>
@@ -594,7 +616,7 @@
     // ---- Worker RPC (SPEC §5.1): all wasm work runs off the UI thread. --------
     // Module workers cache hard; bump BUILD on any *-worker.js change so a plain
     // reload picks it up (no need to purge cache manually while iterating).
-    const BUILD = "2026-09-07c";
+    const BUILD = "2026-09-07d";
 
     // Canvas cannot read CSS variables, so anything drawn has to look them up.
     const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -717,6 +739,30 @@
       if (!codec) return "unreadable";
       return codec.startsWith("hvc") || codec.startsWith("hev") ? "no hevc" : "no decoder";
     }
+    /// Drive the three input chips from what has actually been loaded.
+    ///
+    /// One function rather than a `classList` poke at each call site: the states
+    /// are mutually exclusive, and the old scattered version is how the folder
+    /// button ended up enabled while still looking disabled.
+    function syncSteps() {
+      const chips = [
+        [$("step-json"), Boolean(state.fileName)],
+        // The camera level always has a value once a document is loaded — it is
+        // there to be confirmed, not filled in — so it is settled, never "next".
+        [$("camera-setup"), Boolean(state.fileName)],
+        [$("folder-fsa"), Boolean(state.folderLoaded)],
+      ];
+      const next = chips.findIndex(([, done]) => !done);
+      chips.forEach(([el, done], i) => {
+        if (!el) return;
+        el.classList.remove("is-todo", "is-next", "is-done");
+        // Everything before the first unfinished step is done; the first one is
+        // the action to take; the rest are not reachable yet.
+        el.classList.add(done ? "is-done" : i === next ? "is-next" : "is-todo");
+        if (el.tagName === "BUTTON") el.disabled = !done && i !== next;
+      });
+    }
+
     // Hand the picked directory handle to the workers; each detects the path
     // offset from sample media paths. Returns { ok, offset } / { ok:false, error }.
     async function mediaSetRoot(rootHandle, samplePaths, onProgress) {
@@ -948,8 +994,7 @@
         syncTuningControls();
         syncTuneToggle();
         renderStats();
-        $("folder-fsa").classList.remove("disabled");
-        $("folder-fsa").disabled = false;
+        syncSteps();
         status.textContent = `Loaded ${file.name}. ${state.groups.length.toLocaleString()} candidate group(s).`;
         goToGroup(0);
         updateExportBar();
@@ -1324,7 +1369,6 @@
       }
       select.value = String(state.options.n_dir_levels_from_leaf);
       if (!select.value) select.value = "0";
-      $("camera-setup").hidden = false;
       $("camera-detail").hidden = false;
       renderCameraCheck();
     }
@@ -1747,6 +1791,7 @@
           (missing ? `, ${missing.toLocaleString()} missing/ambiguous` : "") +
           `.`;
         $("precompute").hidden = false;
+        syncSteps();
         goToGroup(currentIndex); // re-render current group, now with crops + prefetch
       } catch (err) {
         showError(err);
@@ -1821,6 +1866,7 @@
             ? `. ${res.tiedWith.length} folders here hold this media — using ${prefix.join("/")}. Pick it directly if that is the wrong copy.`
             : `.`);
       $("precompute").hidden = false;
+      syncSteps();
       goToGroup(currentIndex);
     }
 
@@ -3216,8 +3262,8 @@
       iouSensitivity = null;
       $("iou-table").textContent = "";
       $("iou-compute").textContent = "Compute IoU sensitivity";
-      $("folder-fsa").classList.add("disabled");
-      $("folder-fsa").disabled = true;
+      $("camera-detail").hidden = true;
+      syncSteps();
       errorEl.textContent = "";
       $("results").innerHTML = "";
     }
@@ -3232,6 +3278,10 @@
     function clearError() {
       errorEl.textContent = "";
     }
+
+    // The markup ships in the first-run state; this makes that a fact rather
+    // than something the HTML and the state machine have to agree on by hand.
+    syncSteps();
   </script>
 </body>
 </html>
