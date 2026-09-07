@@ -130,6 +130,26 @@
       background: var(--card); border: 1px solid var(--line); border-radius: 10px;
       padding: 12px 14px; box-shadow: 0 12px 32px var(--shadow); }
     .sheet[hidden] { display: none; }
+    .setting { padding: 10px 0; border-top: 1px solid var(--line); }
+    .setting:first-of-type { border-top: 0; padding-top: 2px; }
+    .setting-row { display: flex; align-items: center; gap: 8px; }
+    .setting-row > label { font-weight: 600; flex: 1; }
+    .setting-row input[type="number"] { font: inherit; width: 4rem; padding: 4px 6px;
+      border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); }
+    .setting-check { display: flex; align-items: center; gap: 6px; margin-top: 8px;
+      color: var(--muted); cursor: pointer; user-select: none; }
+    .setting-check input { margin: 0; }
+    .setting .hint { margin-top: 4px; }
+    .setting kbd { font: inherit; font-size: 0.78rem; border: 1px solid var(--line);
+      border-radius: 4px; padding: 0 4px; }
+    /* The build is what identifies a cached page; the version is what identifies
+       a release. A bug report needs both, so neither is much use alone. */
+    .settings-foot { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line);
+      color: var(--muted); font-size: 0.76rem; font-variant-numeric: tabular-nums; }
+    /* The generic inline sheet is left-anchored and wider than this panel, which
+       put it 21px past the right edge of a 1100px window. These hang off the
+       same edge the settings sheet does. */
+    #settings .sheet.inline { left: auto; right: 0; width: 320px; }
     .sheet-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
     /* Fixed key column so the labels line up; the old auto column made every row
        a different width. */
@@ -347,10 +367,6 @@
     .legend i { width: 9px; height: 9px; border-radius: 2px; flex: none; }
     .preview-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
     .preview-head h2 { margin: 0 0 10px; }
-    /* "f" was a keystroke nobody could discover. The switch is the discoverable
-       half; the key stays for people who have found it. */
-    .frametoggle { font-size: 0.78rem; color: var(--muted); display: inline-flex;
-      align-items: center; gap: 5px; cursor: pointer; user-select: none; }
     .preview canvas { width: 100%; height: auto; max-height: 62vh; object-fit: contain; border-radius: 6px; background: var(--bg-alt); display: block; }
     .preview-meta { color: var(--muted); font-size: 0.82rem; margin: 10px 0 0; word-break: break-all; white-space: pre-line; }
     .preview-meta b { color: var(--ink); }
@@ -368,10 +384,6 @@
     .legend i { width: 9px; height: 9px; border-radius: 2px; flex: none; }
     .preview-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
     .preview-head h2 { margin: 0 0 10px; }
-    /* "f" was a keystroke nobody could discover. The switch is the discoverable
-       half; the key stays for people who have found it. */
-    .frametoggle { font-size: 0.78rem; color: var(--muted); display: inline-flex;
-      align-items: center; gap: 5px; cursor: pointer; user-select: none; }
     .preview canvas { max-height: none; }
     }
 
@@ -397,6 +409,9 @@
         <button class="icon" id="shortcuts-open" title="Keyboard shortcuts" aria-label="Keyboard shortcuts">
           <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 9.5h1M9 9.5h1M12 9.5h1M15 9.5h1M18 9.5h0.5M6 12.5h1M9 12.5h1M12 12.5h1M15 12.5h1M18 12.5h0.5M8 15.5h8"/></svg>
         </button>
+        <button class="icon" id="settings-open" title="Settings" aria-label="Settings">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21v-6M5 11V3M12 21v-9M12 8V3M19 21v-4M19 13V3"/><path d="M2.5 14.5h5M9.5 7.5h5M16.5 12.5h5"/></svg>
+        </button>
         <button class="icon" id="theme-toggle" title="Light or dark" aria-label="Switch between light and dark"></button>
         <a class="icon" href="https://github.com/wsyxbcl/RocksBeGone" target="_blank" rel="noopener" title="Source on GitHub" aria-label="Source on GitHub">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.9a3.4 3.4 0 0 0-.9-2.6c3-.3 6.2-1.5 6.2-6.7A5.2 5.2 0 0 0 19.9 5a4.9 4.9 0 0 0-.1-3.6s-1.1-.3-3.7 1.4a12.6 12.6 0 0 0-6.6 0C6.9 1.1 5.8 1.4 5.8 1.4A4.9 4.9 0 0 0 5.7 5a5.2 5.2 0 0 0-1.4 3.6c0 5.2 3.2 6.4 6.2 6.7a3.4 3.4 0 0 0-.9 2.6V22"/></svg>
@@ -415,6 +430,55 @@
         <dt>d</dt><dd>remove every member of this group</dd>
         <dt>f</dt><dd>whole frame ⇄ the exact frame this detection came from</dd>
       </dl>
+    </div>
+
+    <!-- Settings: the things that hold across every group and every document,
+         as opposed to the parameters, which belong to this document and change
+         what counts as a candidate. -->
+    <div class="sheet" id="settings" hidden>
+      <div class="sheet-head"><strong>Settings</strong><button class="icon" id="settings-close" aria-label="Close">×</button></div>
+
+      <div class="setting">
+        <div class="setting-row">
+          <label for="opt-exemplars">Crops per group</label>
+          <input type="number" id="opt-exemplars" min="2" max="60" step="1" />
+          <button class="help" id="exemplars-help" aria-label="How these are chosen" title="How these are chosen">?</button>
+        </div>
+        <label class="setting-check"><input type="checkbox" id="opt-showall" /> Show every member</label>
+        <div class="sheet inline" id="exemplars-why" hidden>
+          A group can hold hundreds of near-identical crops, so a few are shown
+          that were picked to <em>disagree</em> with each other.
+          <br /><br />
+          Half come straight off the top of the confidence ranking — an animal
+          that keeps using the same trail scores high, so that is where a real
+          one shows up. The other half spread across the different files in the
+          group and across the run, because a rock's appearances differ only by
+          the camera shifting or the light changing.
+          <br /><br />
+          <strong>Show every member</strong> decodes the whole group instead.
+          Expect roughly ten times the work, and some groups run to several
+          hundred crops.
+        </div>
+      </div>
+
+      <div class="setting">
+        <label class="setting-check"><input type="checkbox" id="exact-frame" /> Exact frame
+          <button class="help" id="exact-help" aria-label="What this changes" title="What this changes">?</button>
+        </label>
+        <p class="hint">Toggle while reviewing with <kbd>f</kbd>.</p>
+        <div class="sheet inline" id="exact-why" hidden>
+          For a video, the preview normally shows the clip's <strong>first
+          frame</strong> — quick to decode, and enough to recognise the place.
+          <br /><br />
+          Turn this on to decode <strong>the frame the detection actually came
+          from</strong>. That is the one to look at when deciding whether a box
+          is a rock or an animal, at the cost of decoding into the clip.
+          <br /><br />
+          Still images are unaffected.
+        </div>
+      </div>
+
+      <p class="settings-foot" id="settings-version"></p>
     </div>
 
     <div class="card loadcard">
@@ -551,9 +615,6 @@
       <aside class="preview">
         <div class="preview-head">
           <h2>In context</h2>
-          <label class="frametoggle" title="Video only. The whole clip's first frame, or the frame this detection was found on (f)">
-            <input type="checkbox" id="exact-frame" /> exact frame
-          </label>
         </div>
         <canvas id="preview-canvas" width="400" height="220"></canvas>
         <p class="preview-meta" id="preview-meta">Hover a tile to see it in the full frame, with the detection boxed.</p>
@@ -605,7 +666,11 @@
     // ---- Worker RPC (SPEC §5.1): all wasm work runs off the UI thread. --------
     // Module workers cache hard; bump BUILD on any *-worker.js change so a plain
     // reload picks it up (no need to purge cache manually while iterating).
-    const BUILD = "2026-09-07f";
+    const BUILD = "2026-09-07j";
+    // The release this page belongs to. Kept in step with the workspace
+    // `Cargo.toml` by `rde-core/tests/version.rs`, which fails the build rather
+    // than let a released binary and its page disagree about what they are.
+    const VERSION = "0.1.1";
 
     // Canvas cannot read CSS variables, so anything drawn has to look them up.
     const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -631,8 +696,81 @@
     });
 
     const showShortcuts = (open) => { $("shortcuts").hidden = !open; };
-    $("shortcuts-open").addEventListener("click", () => showShortcuts($("shortcuts").hidden));
+    $("shortcuts-open").addEventListener("click", () => { showSettings(false); showShortcuts($("shortcuts").hidden); });
     $("shortcuts-close").addEventListener("click", () => showShortcuts(false));
+
+    // ---- Settings ------------------------------------------------------------
+    // How the reviewer wants to look at things, as opposed to the parameters,
+    // which decide what there is to look at. These outlive the document, so they
+    // are stored; the parameters are not.
+    const SETTINGS_KEY = "rocksbegone.settings.v1";
+    const DEFAULT_EXEMPLARS = 6;
+    const settings = {
+      exemplars: DEFAULT_EXEMPLARS,
+      showAll: false,
+      exactFrame: false,
+    };
+
+    function loadSettings() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
+        // Clamped on the way in: a hand-edited or stale value should not be able
+        // to ask for a group of 0 crops, or 10,000.
+        if (Number.isFinite(saved.exemplars)) {
+          settings.exemplars = Math.min(60, Math.max(2, Math.round(saved.exemplars)));
+        }
+        settings.showAll = Boolean(saved.showAll);
+        settings.exactFrame = Boolean(saved.exactFrame);
+      } catch { /* first run, or storage disabled */ }
+    }
+    const saveSettings = () => {
+      try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); }
+      catch { /* private mode; the session still works, it just will not persist */ }
+    };
+
+    /// Push `settings` into the controls and into the rest of the app.
+    function applySettings({ rerender = true } = {}) {
+      $("opt-exemplars").value = String(settings.exemplars);
+      $("opt-showall").checked = settings.showAll;
+      // "Show every member" makes the count moot, so it stops accepting input
+      // rather than sitting there looking as if it still decides something.
+      $("opt-exemplars").disabled = settings.showAll;
+      $("exact-frame").checked = settings.exactFrame;
+      exactFrame = settings.exactFrame;
+      $("settings-version").textContent = `RocksBeGone ${VERSION} · build ${BUILD}`;
+      saveSettings();
+      if (rerender && state.groups.length) {
+        // Which crops a group shows just changed, so anything cached about the
+        // current view is stale. Decisions are not: they belong to DetRefs.
+        renderCurrent();
+        updateExportBar();
+      }
+    }
+
+    const showSettings = (open) => {
+      $("settings").hidden = !open;
+      if (!open) { $("exemplars-why").hidden = true; $("exact-why").hidden = true; }
+    };
+    $("settings-open").addEventListener("click", () => { showShortcuts(false); showSettings($("settings").hidden); });
+    $("settings-close").addEventListener("click", () => showSettings(false));
+    for (const [btn, panel] of [["exemplars-help", "exemplars-why"], ["exact-help", "exact-why"]]) {
+      $(btn).addEventListener("click", (e) => {
+        e.preventDefault(); e.stopPropagation();
+        $(panel).hidden = !$(panel).hidden;
+      });
+    }
+    $("opt-exemplars").addEventListener("change", () => {
+      const n = Number($("opt-exemplars").value);
+      settings.exemplars = Number.isFinite(n) ? Math.min(60, Math.max(2, Math.round(n))) : DEFAULT_EXEMPLARS;
+      applySettings();
+    });
+    $("opt-showall").addEventListener("change", () => {
+      settings.showAll = $("opt-showall").checked;
+      applySettings();
+    });
+    $("exact-frame").addEventListener("change", () => {
+      setExactFrame($("exact-frame").checked);
+    });
     const worker = new Worker(`./rde-worker.js?v=${BUILD}`, { type: "module" });
     let nextId = 0;
     const pending = new Map();
@@ -2506,11 +2644,14 @@
     // groups are settled at a glance; the ambiguous ones get expanded. The group
     // header's confidence range is the cue for which is which — a group whose top
     // detection scores high is the one worth opening.
-    const EXEMPLARS = 6;
-    const BY_CONFIDENCE = 3; // of those, how many come from the top of the ranking
-
     function exemplarsOf(group) {
       const all = group.instances;
+      const EXEMPLARS = settings.exemplars;
+      // Half off the ranking, half by spread — a ratio, not a constant, because
+      // the count is the reviewer's to set. Pinning this at 3 would mean a
+      // reviewer asking for 2 crops got two top-confidence ones and none of the
+      // spread, losing the half that catches a shifted camera or changed light.
+      const BY_CONFIDENCE = Math.max(1, Math.round(EXEMPLARS / 2));
       if (all.length <= EXEMPLARS) return all;
 
       // Half by confidence, half by spread, because the two ways this goes wrong
@@ -2555,8 +2696,12 @@
     }
 
     /// What this group is currently showing — exemplars, or everything.
+    ///
+    /// `settings.showAll` is the same thing as pressing "Show all" on every
+    /// group, so it goes through the same branch rather than a parallel path.
     function visibleInstances(group) {
-      return group && !group._expanded ? exemplarsOf(group) : (group ? group.instances : []);
+      if (!group) return [];
+      return group._expanded || settings.showAll ? group.instances : exemplarsOf(group);
     }
 
     // Mark which groups may still decode. Crops are NOT dropped here — the LRU
@@ -2777,14 +2922,10 @@
         case "Enter": case "n": markReviewedAndNext(); break;
         case "[": case "p": goToGroup(currentIndex - 1); break;
         case "]": goToGroup(currentIndex + 1); break;
-        case "f": { // toggle between the clip's first frame and this detection's own
-          setExactFrame(!exactFrame);
-          // Redraw whatever the panel is showing — that may be a hovered tile,
-          // and hovering does not move the keyboard focus.
-          const instance = previewInstance || currentGrid?.children[focusIndex]?._instance;
-          if (instance) drawPreview(instance);
-          break;
-        }
+        // Toggle between the clip's first frame and this detection's own.
+        // setExactFrame redraws whatever the panel is showing, which may be a
+        // hovered tile rather than the focused one.
+        case "f": setExactFrame(!exactFrame); break;
         case "k": setGroupDecision(currentGroup(), "Keep"); break;
         case "d": setGroupDecision(currentGroup(), "Remove"); break;
         default: return;
@@ -2887,17 +3028,18 @@
     // answers "what is this thing?" just as well. `x` loads the exact frame when
     // the moment matters.
     let exactFrame = false;
-    /// The switch and the `f` key are two ways to the same state, so neither may
-    /// set it directly.
+    /// The switch in Settings and the `f` key are two ways to the same state, so
+    /// neither may set it directly. It is a stored preference now rather than a
+    /// per-document toggle: someone reviewing video wants the exact frame every
+    /// time, and having to say so again on each load is just a chore.
     function setExactFrame(on) {
       exactFrame = on;
+      settings.exactFrame = on;
       $("exact-frame").checked = on;
-    }
-    $("exact-frame").addEventListener("change", (e) => {
-      setExactFrame(e.target.checked);
+      saveSettings();
       const instance = previewInstance || currentGrid?.children[focusIndex]?._instance;
       if (instance) drawPreview(instance);
-    });
+    }
     let previewInstance = null; // what the panel is currently showing
     function previewFrameOf(instance) {
       if (instance.frame_number === undefined) return undefined; // a still
@@ -3262,7 +3404,8 @@
       clearCropCache();
       clearPreviewCache();
       detectionsCache.clear();
-      setExactFrame(false);
+      // Exact-frame is a stored preference now, not per-document state, so a new
+      // document does not get to reset it.
       tileByKey.clear();
       state.imageFiles = null;
       $("tune").hidden = true;
@@ -3290,6 +3433,9 @@
     // The markup ships in the first-run state; this makes that a fact rather
     // than something the HTML and the state machine have to agree on by hand.
     syncSteps();
+    // Last, because it touches controls and module state declared above it.
+    loadSettings();
+    applySettings({ rerender: false });
   </script>
 </body>
 </html>
