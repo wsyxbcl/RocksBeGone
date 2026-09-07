@@ -167,6 +167,26 @@
       border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); }
     /* The card had a large empty right half; put the current parameters there and
        make the whole block the way in to tuning. */
+    /* The three input steps. Muted ahead, solid now, ticked behind — enough to
+       show the order without a wizard that takes the page over. */
+    .steps { list-style: none; display: flex; flex-direction: column; gap: 2px; }
+    .step { display: flex; gap: 12px; align-items: flex-start; padding: 6px 0; }
+    .step-n { flex: none; width: 22px; height: 22px; margin-top: 5px; border-radius: 50%;
+      display: grid; place-items: center; font-size: 0.75rem; font-weight: 600;
+      border: 1px solid var(--line); color: var(--muted); }
+    .step-body { min-width: 0; flex: 1; }
+    .step-title { font-weight: 600; margin-bottom: 2px; }
+    .step.is-later { opacity: 0.45; }
+    .step.is-later .file { pointer-events: none; }
+    .step.is-now > .step-n { border-color: var(--accent); color: var(--accent); }
+    .step.is-done > .step-n { border-color: var(--accent); background: var(--accent); color: #fff; }
+    .step.is-done .step-title, .step.is-done .file { font-weight: 600; }
+    /* What the .json says to look for. Monospace because these are literal
+       folder names the user has to match against a file dialog. */
+    .want { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.82rem;
+      color: var(--ink); background: var(--field); border-radius: 6px;
+      padding: 7px 10px; margin-top: 5px; display: inline-block; max-width: 100%;
+      overflow-x: auto; white-space: nowrap; }
     .loadcard { display: flex; gap: 24px; align-items: stretch; }
     .loadcard-main { flex: 1 1 auto; min-width: 0; }
     /* Same weight as the two Load buttons — these are the three things you set
@@ -405,12 +425,32 @@
 
     <div class="card loadcard">
       <div class="loadcard-main">
-      <div class="row">
-        <label class="file">1 · Load MegaDetector .json<input id="json-input" type="file" accept=".json,application/json" /></label>
-        <button class="file disabled" id="folder-fsa">2 · Load image folder</button>
-        <!-- Fallback picker: hidden, triggered programmatically when the File System Access picker is unavailable or blocked (user-activation). -->
-        <input id="folder-input" type="file" webkitdirectory directory multiple hidden />
-      </div>
+      <!-- Three ordered steps. Step 2 is guidance, not a choice: the .json already
+           determines which folder is wanted, so telling the user what to look for
+           beats asking them to work it out and correcting them afterwards. -->
+      <ol class="steps" id="steps">
+        <li class="step is-now" id="step-json">
+          <span class="step-n">1</span>
+          <div class="step-body">
+            <label class="file">Load MegaDetector .json<input id="json-input" type="file" accept=".json,application/json" /></label>
+          </div>
+        </li>
+        <li class="step is-later" id="step-where">
+          <span class="step-n">2</span>
+          <div class="step-body">
+            <div class="step-title">Where is your media?</div>
+            <p class="hint" id="where-hint">Load a .json first — it says which folder to look for.</p>
+          </div>
+        </li>
+        <li class="step is-later" id="step-folder">
+          <span class="step-n">3</span>
+          <div class="step-body">
+            <button class="file disabled" id="folder-fsa">Load media folder</button>
+            <!-- Fallback picker: hidden, triggered programmatically when the File System Access picker is unavailable or blocked (user-activation). -->
+            <input id="folder-input" type="file" webkitdirectory directory multiple hidden />
+          </div>
+        </li>
+      </ol>
       <p class="hint" id="status">Load a MegaDetector results .json to begin.</p>
       <div class="metrics" id="metrics" hidden>
         <div class="metric"><b id="m-images">–</b><span>media</span></div>
@@ -583,7 +623,7 @@
     // ---- Worker RPC (SPEC §5.1): all wasm work runs off the UI thread. --------
     // Module workers cache hard; bump BUILD on any *-worker.js change so a plain
     // reload picks it up (no need to purge cache manually while iterating).
-    const BUILD = "2026-09-06k";
+    const BUILD = "2026-09-07a";
 
     // Canvas cannot read CSS variables, so anything drawn has to look them up.
     const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -642,14 +682,16 @@
       const pending = new Map();
       let nextId = 0;
       worker.addEventListener("message", (event) => {
-        const resolve = pending.get(event.data.id);
-        if (!resolve) return;
+        const entry = pending.get(event.data.id);
+        if (!entry) return;
+        // A progress note is an update on a call still in flight, not its answer.
+        if (event.data.progress) { entry.onProgress?.(event.data); return; }
         pending.delete(event.data.id);
-        resolve(event.data); // callers read .ok / .results / .blob / .bitmap / .offset
+        entry.resolve(event.data); // callers read .ok / .results / .blob / .bitmap / .offset
       });
-      return (message) => new Promise((resolve) => {
+      return (message, onProgress) => new Promise((resolve) => {
         const id = ++nextId;
-        pending.set(id, resolve);
+        pending.set(id, { resolve, onProgress });
         worker.postMessage({ ...message, id });
       });
     }
@@ -704,13 +746,56 @@
       if (!codec) return "unreadable";
       return codec.startsWith("hvc") || codec.startsWith("hev") ? "no hevc" : "no decoder";
     }
+    /// Mark one of the three input steps: "later" (muted), "now", or "done".
+    function setStep(name, state) {
+      const el = $(`step-${name}`);
+      if (!el) return;
+      el.classList.remove("is-later", "is-now", "is-done");
+      el.classList.add(`is-${state}`);
+    }
+
+    /// Say which folder to pick, from what the .json actually contains.
+    ///
+    /// The paths in the .json fully determine the folder wanted, so this is
+    /// shown rather than asked. It is the difference between someone picking
+    /// right the first time and picking wrong, reading an error, and guessing.
+    /// Note this is unrelated to the camera-folder level, which decides how
+    /// detections are grouped, not where files live.
+    function describeWantedFolder() {
+      const hint = $("where-hint");
+      const paths = (state.imageFiles || []).filter(Boolean);
+      if (!paths.length) { hint.textContent = "This .json lists no media paths."; return; }
+
+      // The first component of each path is the folder that must sit directly
+      // inside whatever the user picks. Depth-1 paths (a bare filename) are the
+      // exception: then the files themselves are what to look for.
+      const heads = [...new Set(paths.map((p) => p.split(/[\\/]/).filter(Boolean)[0]).filter(Boolean))].sort();
+      const nested = paths.some((p) => p.split(/[\\/]/).filter(Boolean).length > 1);
+      const shown = heads.slice(0, 3);
+      const rest = heads.length - shown.length;
+      hint.innerHTML =
+        (nested
+          ? `Pick the folder that <strong>directly contains</strong> these:`
+          : `Pick the folder that <strong>directly contains</strong> these files:`) +
+        `<span class="want">` + shown.map((h) => escapeHtml(h) + (nested ? "/" : "")).join("  ") +
+        (rest > 0 ? `  …${rest.toLocaleString()} more` : "") + `</span>`;
+    }
+
+    const escapeHtml = (s) => String(s).replace(/[&<>"']/g,
+      (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
     // Hand the picked directory handle to the workers; each detects the path
     // offset from sample media paths. Returns { ok, offset } / { ok:false, error }.
-    async function mediaSetRoot(rootHandle, samplePaths) {
-      const [crop] = await Promise.all([
-        cropWorker({ kind: "setRoot", rootHandle, samplePaths }),
-        previewWorker({ kind: "setRoot", rootHandle, samplePaths }),
-      ]);
+    async function mediaSetRoot(rootHandle, samplePaths, onProgress) {
+      // One worker does the search and the other is told the answer. Both used to
+      // detect independently, which was free when detection was eight lookups;
+      // now that it can descend a directory tree, it would be the same walk twice
+      // — and two searches can in principle disagree.
+      const crop = await cropWorker({ kind: "setRoot", rootHandle, samplePaths }, onProgress);
+      await previewWorker({
+        kind: "setRoot", rootHandle, samplePaths,
+        align: crop.ok ? { offset: crop.offset, prefix: crop.prefix } : null,
+      });
       return crop;
     }
 
@@ -932,7 +1017,9 @@
         renderStats();
         $("folder-fsa").classList.remove("disabled");
         $("folder-fsa").disabled = false;
-        status.textContent = `Loaded ${file.name}. ${state.groups.length.toLocaleString()} candidate group(s). Load the image folder to review crops.`;
+        describeWantedFolder();
+        setStep("json", "done"); setStep("where", "now"); setStep("folder", "now");
+        status.textContent = `Loaded ${file.name}. ${state.groups.length.toLocaleString()} candidate group(s).`;
         goToGroup(0);
         updateExportBar();
       } catch (err) {
@@ -1660,6 +1747,20 @@
     const median = (xs) => (xs.length ? xs.slice().sort((a, b) => a - b)[xs.length >> 1] : 0);
 
     // ---- 2. Load image folder + match + decode -------------------------------
+    /// The `webkitdirectory` picker — Firefox, Safari, and Chromium when the FSA
+    /// picker is refused.
+    ///
+    /// The browser enumerates the entire tree before `change` fires, and there is
+    /// no event in between: on a real archive that is tens of thousands of File
+    /// objects (77,947 for one 26k-image dataset) and can run to minutes on a
+    /// slow disk. Nothing can be shown *during* it, so the warning has to go up
+    /// before the dialog opens and simply stay there.
+    function openFallbackPicker() {
+      status.textContent = "Reading the folder… on a large archive this can take a minute, " +
+        "and the page will not respond until the browser has finished.";
+      $("folder-input").click();
+    }
+
     $("folder-input").addEventListener("change", async (event) => {
       // NB: the browser has already enumerated the whole folder tree by the time
       // this fires — for a huge folder on a slow HDD, that enumeration (not our
@@ -1713,6 +1814,7 @@
           (missing ? `, ${missing.toLocaleString()} missing/ambiguous` : "") +
           `.`;
         $("precompute").hidden = false;
+        setStep("where", "done"); setStep("folder", "done");
         goToGroup(currentIndex); // re-render current group, now with crops + prefetch
       } catch (err) {
         showError(err);
@@ -1732,15 +1834,22 @@
       // has no stills to offer.
       const samples = suspicious.map((i) => state.imageFiles[i]).filter(Boolean).slice(0, 8);
       if (!samples.length) throw new Error("this document has no candidate media to locate");
-      const res = await mediaSetRoot(rootHandle, samples);
+      const res = await mediaSetRoot(rootHandle, samples, (p) => {
+        status.textContent = `Looking inside “${rootHandle.name}” — checking ` +
+          `${p.candidates.toLocaleString()} folder${p.candidates === 1 ? "" : "s"}…`;
+      });
       if (!res.ok) {
         // The one error most likely to be seen by someone who has done nothing
-        // wrong, so it names the fix and shows the path we were looking for.
+        // wrong. It used to end "any level above works", which is not true and
+        // sent at least one person hunting for a data problem they did not have:
+        // the search descends two levels, no further. Say what was tried, and
+        // name the folder to look for instead of the file.
         const want = samples[0] || "";
+        const wantDir = want.split(/[\\/]/).filter(Boolean)[0] || want;
         throw new Error(
-          `“${rootHandle.name}” doesn't seem to contain the media this .json describes. ` +
-          `It lists files like “${want}” — pick the folder that contains them ` +
-          `(any level above works).`);
+          `No media found under “${rootHandle.name}”. This .json describes paths ` +
+          `like “${want}”, so the folder you pick needs to contain “${wantDir}” — ` +
+          `directly, or up to two levels down. Pick that folder, or one just above it.`);
       }
       collapseTuning();
       state.folderMode = "fsa";
@@ -1751,18 +1860,35 @@
       // candidate count as if it were a count of media found, so a wrong offset
       // looked like a successful load with blank crops everywhere — the most
       // confusing failure this tool can produce.
-      const shown = `${state.imageFiles[suspicious[0]] || ""}`.split(/[\\/]/).filter(Boolean).slice(res.offset).join("/");
+      const prefix = res.prefix || [];
+      const shown = [...prefix, ...`${state.imageFiles[suspicious[0]] || ""}`
+        .split(/[\\/]/).filter(Boolean).slice(res.offset)].join("/");
       console.log(`[rde] FSA root “${rootHandle.name}”: dropping ${res.offset} leading path ` +
-        `component(s), so “${shown}” is looked for under it — ${res.hits}/${res.probes} probes resolved`);
+        `component(s)` + (prefix.length ? `, descending into “${prefix.join("/")}”` : "") +
+        `, so “${shown}” is looked for under it — ${res.hits}/${res.probes} probes resolved`);
       $("m-matched").textContent = `${suspicious.length}`;
       const shaky = res.hits < res.probes;
+      // More than one folder under the pick holds the media. We use the first,
+      // but the reviewer is the only one who knows which copy they meant.
+      if (res.tiedWith) {
+        console.warn(`[rde] ${res.tiedWith.length} folders under “${rootHandle.name}” match the ` +
+          `json paths: ${res.tiedWith.map((p) => p.join("/")).join(", ")} — using the first`);
+      }
       status.textContent =
-        `Linked ${rootHandle.name} — ${suspicious.length.toLocaleString()} candidate media` +
+        `Linked ${rootHandle.name}` +
+        // Where it actually found them. Silently resolving media from a folder
+        // the user did not pick is the kind of help that becomes a mystery when
+        // it guesses wrong.
+        (prefix.length ? `/${prefix.join("/")}` : "") +
+        ` — ${suspicious.length.toLocaleString()} candidate media` +
         (nVid ? ` (${nImg.toLocaleString()} image, ${nVid.toLocaleString()} video)` : "") +
         (shaky
           ? `. Only ${res.hits} of ${res.probes} sample paths were found under it — if crops come up blank, pick a different folder.`
-          : `.`);
+          : res.tiedWith
+            ? `. ${res.tiedWith.length} folders here hold this media — using ${prefix.join("/")}. Pick it directly if that is the wrong copy.`
+            : `.`);
       $("precompute").hidden = false;
+      setStep("where", "done"); setStep("folder", "done");
       goToGroup(currentIndex);
     }
 
@@ -1772,7 +1898,7 @@
     // dialog is up so it is obvious why a second press does nothing.
     let pickerOpen = false;
     $("folder-fsa").addEventListener("click", async () => {
-      if (!window.showDirectoryPicker) { $("folder-input").click(); return; } // non-Chromium
+      if (!window.showDirectoryPicker) { openFallbackPicker(); return; } // non-Chromium
       if (pickerOpen) return;
       pickerOpen = true;
       $("folder-fsa").classList.add("disabled");
@@ -1785,7 +1911,7 @@
         // Blocked for lack of user activation → fall back
         // to the plain directory <input>, which has looser activation rules.
         if (err && (err.name === "SecurityError" || /user activation/i.test(err.message || ""))) {
-          $("folder-input").click();
+          openFallbackPicker();
           return;
         }
         showError(err);
@@ -3160,6 +3286,8 @@
       $("iou-compute").textContent = "Compute IoU sensitivity";
       $("folder-fsa").classList.add("disabled");
       $("folder-fsa").disabled = true;
+      setStep("json", "now"); setStep("where", "later"); setStep("folder", "later");
+      $("where-hint").textContent = "Load a .json first — it says which folder to look for.";
       errorEl.textContent = "";
       $("results").innerHTML = "";
     }

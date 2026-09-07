@@ -35,41 +35,93 @@ const CROP_QUALITY = 0.85;
 // ---- File System Access resolution ----------------------------------------
 let rootHandle = null;
 let stripComponents = 0;            // leading json-path components to drop for the path under root
-const dirCache = new Map();         // "a/b/c" (dirs under root) -> FileSystemDirectoryHandle
+let rootPrefix = [];                // dirs to descend from the picked folder first (see detectOffset)
+// Keyed by prefix + path-under-root, so entries stay valid across probes that
+// try different prefixes and offsets. A `null` value is a remembered miss:
+// during alignment most lookups fail, and re-walking a directory to re-discover
+// the same absence is what made a wrong pick feel like a hang.
+const dirCache = new Map();
 
 const splitPath = (p) => p.replace(/\\/g, "/").split("/").filter(Boolean);
 
-async function childDir(parent, name) {
+// Lowercased listing per directory, built at most once.
+//
+// Both lookups below fall back to enumeration when the exact name misses, which
+// is what makes a json written on Windows resolve on a case-sensitive disk. The
+// fallback is also hit by every *failed* probe during alignment, and a camera
+// folder holds thousands of files — measured at 79,213 filesystem calls to align
+// a correctly-picked folder, because each miss re-listed the same directory.
+// Listing once turns that back into the handful of lookups it should be.
+const listings = new Map(); // dir key -> Map(lowercased name -> handle)
+
+async function listingOf(handle, key) {
+  let listing = listings.get(key);
+  if (listing) return listing;
+  listing = new Map();
+  for await (const [name, h] of handle.entries()) listing.set(name.toLowerCase(), h);
+  listings.set(key, listing);
+  return listing;
+}
+
+// `key` identifies the PARENT directory, so its listing can be reused.
+//
+// `strict` skips the case-insensitive fallback. The fallback is what makes a
+// json written on Windows resolve on a case-sensitive disk, so it must stay for
+// real lookups — but during a wide search most lookups are *meant* to miss, and
+// paying a directory listing for each one is what made searching from two levels
+// up cost tens of thousands of calls.
+async function childDir(parent, name, key, strict = false) {
   try { return await parent.getDirectoryHandle(name); }
   catch {
-    // Case-insensitive / ambiguity fallback: enumerate THIS directory only.
-    const lower = name.toLowerCase();
-    for await (const [n, h] of parent.entries()) if (h.kind === "directory" && n.toLowerCase() === lower) return h;
+    if (strict) throw new Error("dir not found: " + name);
+    const hit = (await listingOf(parent, key)).get(name.toLowerCase());
+    if (hit && hit.kind === "directory") return hit;
     throw new Error("dir not found: " + name);
   }
 }
-async function childFile(parent, name) {
+async function childFile(parent, name, key, strict = false) {
   try { return await parent.getFileHandle(name); }
   catch {
-    const lower = name.toLowerCase();
-    for await (const [n, h] of parent.entries()) if (h.kind === "file" && n.toLowerCase() === lower) return h;
+    if (strict) throw new Error("file not found: " + name);
+    const hit = (await listingOf(parent, key)).get(name.toLowerCase());
+    if (hit && hit.kind === "file") return hit;
     throw new Error("file not found: " + name);
   }
 }
 
 // Resolve a media path (its json path) to a File, via the retained handle.
-async function resolveFile(path, strip = stripComponents) {
+//
+// The path walked is `<picked folder>/<prefix>/<json path minus `strip` leading
+// components>`. `strip` drops components the picked folder already accounts for;
+// `prefix` descends into folders the json path never mentions, which is the case
+// when someone picks a level or two above the directory the paths are relative
+// to (SPEC §6.2).
+async function resolveFile(path, strip = stripComponents, prefix = rootPrefix, strict = false) {
   if (!rootHandle) throw new Error("no folder has been picked yet");
-  const parts = splitPath(path).slice(strip);
+  const parts = [...prefix, ...splitPath(path).slice(strip)];
   const filename = parts.pop();
-  let handle = rootHandle, key = "";
+  let handle = rootHandle, parentKey = "", key = "";
   for (const name of parts) {
+    parentKey = key;
     key = key ? key + "/" + name : name;
-    let h = dirCache.get(key);
-    if (!h) { h = await childDir(handle, name); dirCache.set(key, h); }
+    if (dirCache.has(key)) {
+      const cached = dirCache.get(key);
+      if (!cached) throw new Error("dir not found: " + name); // remembered miss
+      handle = cached;
+      continue;
+    }
+    let h;
+    try { h = await childDir(handle, name, parentKey, strict); }
+    catch (err) {
+      // A strict miss is "not spelled exactly that", not "not there" — do not
+      // let a search shortcut poison the cache for the real lookups later.
+      if (!strict) dirCache.set(key, null);
+      throw err;
+    }
+    dirCache.set(key, h);
     handle = h;
   }
-  const fh = await childFile(handle, filename);
+  const fh = await childFile(handle, filename, key, strict);
   return fh.getFile();
 }
 
@@ -86,30 +138,123 @@ async function resolveFile(path, strip = stripComponents) {
 /// can mix path shapes — stills written one way, videos another — and an offset
 /// that happens to resolve one sample and nothing else used to be accepted
 /// silently, which surfaces as blank crops everywhere rather than as an error.
-async function detectOffset(samplePaths) {
-  const candidates = [];
+const MAX_DESCENT_DEPTH = 2;    // how many unmentioned levels a pick may sit above
+const MAX_DIRS_PER_LEVEL = 200; // stop collecting after this many subfolders
+const MAX_ENTRIES_SCANNED = 4000; // ...and stop *looking* after this many entries
+
+/// Subfolder names directly under `handle`, bounded twice over.
+///
+/// Capping the folders collected is not enough: a camera folder is thousands of
+/// files and no subfolders, and `entries()` yields the files too. Scanning one
+/// such folder to learn it has no children cost 31,890 filesystem calls. Both
+/// caps are deliberately generous — a media root with more than 200 camera
+/// folders, or 4,000 entries before its first subfolder, is not a shape this
+/// search needs to serve, and the user can always pick the folder directly.
+async function childDirNames(handle) {
+  const names = [];
+  let scanned = 0;
+  for await (const [name, h] of handle.entries()) {
+    if (++scanned > MAX_ENTRIES_SCANNED) break;
+    if (h.kind !== "directory") continue;
+    names.push(name);
+    if (names.length >= MAX_DIRS_PER_LEVEL) break;
+  }
+  return names;
+}
+
+async function detectOffset(samplePaths, onProgress = null) {
+  const offsets = [];
   for (const p of samplePaths) {
     const comps = splitPath(p);
     const idx = comps.lastIndexOf(rootHandle.name);
-    if (idx >= 0 && idx < comps.length - 1) candidates.push(idx + 1);
+    if (idx >= 0 && idx < comps.length - 1) offsets.push(idx + 1);
   }
-  for (let o = 0; o < 8; o++) candidates.push(o); // fallback: shallow offsets
+  for (let o = 0; o < 8; o++) offsets.push(o); // fallback: shallow offsets
+  const uniqueOffsets = [...new Set(offsets)];
   const probes = samplePaths.slice(0, 8);
-  let best = null;
-  const seen = new Set();
-  for (const off of candidates) {
-    if (seen.has(off)) continue; seen.add(off);
+
+  // Score one (prefix, offset) pair over every probe.
+  const score = async (prefix, off) => {
     let hits = 0;
     for (const probe of probes) {
-      dirCache.clear();
-      try { await resolveFile(probe, off); hits++; } catch { /* not this one */ }
+      try { await resolveFile(probe, off, prefix); hits++; } catch { /* not this one */ }
     }
-    if (hits > (best?.hits ?? 0)) best = { off, hits };
-    if (hits === probes.length) break; // nothing can beat all of them
+    return hits;
+  };
+
+  let best = null;
+  const consider = async (prefix, off) => {
+    const hits = await score(prefix, off);
+    if (hits > (best?.hits ?? 0)) best = { prefix, off, hits };
+    return hits === probes.length;
+  };
+
+  // Phase 1 — the picked folder is the root the paths are relative to, or an
+  // ancestor named in them. Unchanged, and still the only work done when the
+  // pick is right.
+  for (const off of uniqueOffsets) {
+    if (await consider([], off)) return done(best, probes.length);
   }
-  dirCache.clear();
+
+  // Phase 2 — the pick is ABOVE the root, by folders the json never names.
+  // Only reached when nothing above resolved, so the common case never pays for
+  // it. Widening one probe at a time keeps a 200-child folder to 200 lookups
+  // rather than 200 x 8 x offsets.
+  let frontier = [[]];
+  for (let depth = 0; depth < MAX_DESCENT_DEPTH; depth++) {
+    const next = [];
+    for (const prefix of frontier) {
+      let parent = rootHandle;
+      try {
+        let key = "";
+        for (const name of prefix) {
+          parent = await childDir(parent, name, key);
+          key = key ? key + "/" + name : name;
+        }
+      }
+      catch { continue; }
+      for (const name of await childDirNames(parent)) next.push([...prefix, name]);
+    }
+    if (!next.length) break;
+    onProgress?.({ depth: depth + 1, candidates: next.length });
+
+    // Cheap pass: one probe, offset 0 — the shape a correctly-structured
+    // archive has once you are standing in the right place.
+    const promising = [];
+    for (const prefix of next) {
+      try { await resolveFile(probes[0], 0, prefix, true); promising.push(prefix); }
+      catch { /* not below here */ }
+    }
+    // Every promising prefix is scored, with no early exit, so a tie is seen
+    // rather than resolved by directory order. Two folders that both hold the
+    // media is a real shape — an archive kept beside a working copy — and
+    // silently choosing one is how a reviewer ends up judging the wrong pixels.
+    // `promising` is normally one entry, so this costs nothing in practice.
+    const scored = [];
+    for (const prefix of promising) {
+      let localBest = null;
+      for (const off of uniqueOffsets) {
+        const hits = await score(prefix, off);
+        if (hits > (localBest?.hits ?? 0)) localBest = { prefix, off, hits };
+        if (hits === probes.length) break;
+      }
+      if (localBest?.hits) scored.push(localBest);
+    }
+    if (scored.length) {
+      scored.sort((a, b) => b.hits - a.hits);
+      best = scored[0];
+      const tied = scored.filter((s) => s.hits === best.hits);
+      return done(best, probes.length, tied.length > 1 ? tied.map((t) => t.prefix) : null);
+    }
+    frontier = next;
+  }
+
   if (!best || best.hits === 0) throw new Error("could not align the folder to the json paths");
-  return { offset: best.off, hits: best.hits, probes: probes.length };
+  return done(best, probes.length);
+}
+
+function done(best, probes, tiedWith = null) {
+  return { offset: best.off, prefix: best.prefix, hits: best.hits, probes, tiedWith };
 }
 
 async function sourceFile(data) {
@@ -218,8 +363,20 @@ self.onmessage = async (event) => {
     if (kind === "setRoot") {
       rootHandle = event.data.rootHandle;
       dirCache.clear();
-      const aligned = await detectOffset(event.data.samplePaths);
+      listings.clear();
+      rootPrefix = [];
+      stripComponents = 0;
+      // The second worker is handed the alignment the first one found rather
+      // than repeating the search.
+      const given = event.data.align;
+      // Descending can take a moment on a wide folder; say so rather than let
+      // the page sit silent.
+      const aligned = given
+        ? { offset: given.offset, prefix: given.prefix || [], hits: 0, probes: 0 }
+        : await detectOffset(event.data.samplePaths, (p) =>
+            self.postMessage({ id, progress: true, ...p }));
       stripComponents = aligned.offset;
+      rootPrefix = aligned.prefix || [];
       self.postMessage({ id, ok: true, ...aligned });
       return;
     }
