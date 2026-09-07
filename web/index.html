@@ -89,6 +89,11 @@
     h2 { font-size: 1.05rem; margin: 0 0 10px; }
     .lede a { color: var(--accent); text-underline-offset: 2px; }
     .lede { color: var(--muted); margin: 0 0 22px; }
+    /* Focus mode. Measured on a 757px window: the setup card and the lede take
+       316px between them and the review area gets 271px, so folding them away
+       is not a tidy-up — it is 2.2x the space for the thing being looked at. */
+    body.focused .lede, body.focused .loadcard { display: none; }
+    body.focused main { padding-top: 12px; }
     .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 18px; margin-bottom: 16px; }
     .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
     /* The three inputs share one shape, and carry two independent things.
@@ -418,6 +423,9 @@
         <button class="icon" id="shortcuts-open" title="Keyboard shortcuts" aria-label="Keyboard shortcuts">
           <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 9.5h1M9 9.5h1M12 9.5h1M15 9.5h1M18 9.5h0.5M6 12.5h1M9 12.5h1M12 12.5h1M15 12.5h1M18 12.5h0.5M8 15.5h8"/></svg>
         </button>
+        <button class="icon" id="focus-toggle" title="Focus mode — hide the setup panel (z)" aria-label="Focus mode" aria-pressed="false" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true" id="focus-icon"><path d="M15 3h6v6M21 3l-7.5 7.5M9 21H3v-6M3 21l7.5-7.5"/></svg>
+        </button>
         <button class="icon" id="settings-open" title="Settings" aria-label="Settings">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21v-6M5 11V3M12 21v-9M12 8V3M19 21v-4M19 13V3"/><path d="M2.5 14.5h5M9.5 7.5h5M16.5 12.5h5"/></svg>
         </button>
@@ -435,6 +443,7 @@
           <dt>k</dt><dd>keep every member of this group</dd>
           <dt>d</dt><dd>remove every member of this group</dd>
           <dt>f</dt><dd>whole frame ⇄ the exact frame this detection came from</dd>
+        <dt>z</dt><dd>focus mode — hide the setup panel and review full-window</dd>
         </dl>
       </div>
 
@@ -678,7 +687,7 @@
     // ---- Worker RPC (SPEC §5.1): all wasm work runs off the UI thread. --------
     // Module workers cache hard; bump BUILD on any *-worker.js change so a plain
     // reload picks it up (no need to purge cache manually while iterating).
-    const BUILD = "2026-09-07l";
+    const BUILD = "2026-09-07m";
     // Filled from the wasm once it is up — cargo already knows the version, and
     // a copy here would be a second thing to bump. Until then the build stamp
     // alone identifies the page.
@@ -760,6 +769,30 @@
         updateExportBar();
       }
     }
+
+    // ---- Focus mode ----------------------------------------------------------
+    // Hides the setup panel so the crops and the context panel have the window.
+    // Deliberately not persisted: the panel it hides is the only way to load a
+    // document, so a stored "on" would greet someone with a blank page and no
+    // visible way forward. It is one key to get back into.
+    const EXPAND_ICON = "M15 3h6v6M21 3l-7.5 7.5M9 21H3v-6M3 21l7.5-7.5";
+    const CONTRACT_ICON = "M20 9h-6V3M14 10l7-7M4 15h6v6M10 14l-7 7";
+    let focused = false;
+
+    function setFocus(on) {
+      // Nothing to focus on without a document, and hiding the loader would
+      // strand the page.
+      const allowed = on && state.groups.length > 0;
+      focused = allowed;
+      document.body.classList.toggle("focused", allowed);
+      const button = $("focus-toggle");
+      button.setAttribute("aria-pressed", String(allowed));
+      button.title = allowed
+        ? "Leave focus mode (z)"
+        : "Focus mode — hide the setup panel (z)";
+      $("focus-icon").innerHTML = `<path d="${allowed ? CONTRACT_ICON : EXPAND_ICON}"/>`;
+    }
+    $("focus-toggle").addEventListener("click", () => setFocus(!focused));
 
     const showSettings = (open) => {
       $("settings").hidden = !open;
@@ -1141,6 +1174,7 @@
         syncTuneToggle();
         renderStats();
         syncSteps();
+        $("focus-toggle").hidden = false;
         status.textContent = `Loaded ${file.name}. ${state.groups.length.toLocaleString()} candidate group(s).`;
         goToGroup(0);
         updateExportBar();
@@ -2940,6 +2974,8 @@
         // setExactFrame redraws whatever the panel is showing, which may be a
         // hovered tile rather than the focused one.
         case "f": setExactFrame(!exactFrame); break;
+        case "z": setFocus(!focused); break;
+        case "Escape": if (focused) setFocus(false); break;
         case "k": setGroupDecision(currentGroup(), "Keep"); break;
         case "d": setGroupDecision(currentGroup(), "Remove"); break;
         default: return;
@@ -3428,6 +3464,8 @@
       $("iou-table").textContent = "";
       $("iou-compute").textContent = "Compute IoU sensitivity";
       $("camera-detail").hidden = true;
+      setFocus(false);
+      $("focus-toggle").hidden = true;
       syncSteps();
       errorEl.textContent = "";
       $("results").innerHTML = "";
