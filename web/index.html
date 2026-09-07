@@ -711,7 +711,13 @@
     // ---- Worker RPC (SPEC §5.1): all wasm work runs off the UI thread. --------
     // Module workers cache hard; bump BUILD on any *-worker.js change so a plain
     // reload picks it up (no need to purge cache manually while iterating).
-    const BUILD = "2026-09-07p";
+    //
+    // Bump it when releasing, too. The wasm is fetched as `?v=${BUILD}`, so a new
+    // version with an unchanged BUILD serves the cached old binary — caught by
+    // the settings panel still reporting 0.1.1 after the bump to 0.2.0. The
+    // deployed site sends `Cache-Control: no-cache` and so revalidates anyway;
+    // this is what protects everything that does not.
+    const BUILD = "2026-09-07q";
     // Filled from the wasm once it is up — cargo already knows the version, and
     // a copy here would be a second thing to bump. Until then the build stamp
     // alone identifies the page.
