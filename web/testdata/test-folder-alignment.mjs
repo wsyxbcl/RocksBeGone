@@ -65,10 +65,16 @@ for (const cam of ["cam_a", "cam_b"]) {
   for (const n of ["0001", "0002"]) touch(`twin/backup/${cam}/${cam}-IMG_${n}.jpg`);
   for (const n of ["0001", "0002"]) touch(`twin/working/${cam}/${cam}-IMG_${n}.jpg`);
 }
-// Buried deeper than the search is allowed to go, in its own subtree so nothing
-// else can satisfy the probe first.
+// Exactly at the limit, and one past it. Each lives in its own subtree so
+// nothing shallower can satisfy the probe first.
 for (const cam of ["cam_a", "cam_b"]) {
-  for (const n of ["0001", "0002"]) touch(`deep/l1/l2/l3/${cam}/${cam}-IMG_${n}.jpg`);
+  for (const n of ["0001", "0002"]) touch(`atlimit/l1/l2/l3/${cam}/${cam}-IMG_${n}.jpg`);
+  for (const n of ["0001", "0002"]) touch(`toodeep/l1/l2/l3/l4/${cam}/${cam}-IMG_${n}.jpg`);
+}
+// Wide and shallow, holding nothing: the shape of picking a home directory.
+// The frontier is cumulative, so this is what the total cap is for.
+for (let a = 0; a < 40; a++) {
+  for (let b = 0; b < 40; b++) mkdirSync(join(root, `wide/d${a}/e${b}`), { recursive: true });
 }
 
 const SAMPLES = ["cam_a/cam_a-IMG_0001.jpg", "cam_b/cam_b-IMG_0002.jpg"];
@@ -102,11 +108,22 @@ check("two levels above descends", r.ok && r.hits === 2 && r.prefix.join("/") ==
 check("decoy of sidecars rejected", r.prefix[0] !== "decoy");
 check("descent stays bounded", r.fsCalls < 500, `${r.fsCalls} fs calls`);
 
-// Three unmentioned levels is past MAX_DESCENT_DEPTH: fail, and fail fast.
-// Better to say "not here" than to walk an entire drive looking.
-r = await align(join(root, "deep"), "deep");
+// Three unmentioned levels: the deepest the search is allowed to go.
+r = await align(join(root, "atlimit"), "atlimit");
+check("three levels above descends", r.ok && r.prefix.join("/") === "l1/l2/l3", `prefix=${r.prefix}`);
+
+// Four is past MAX_DESCENT_DEPTH: fail, and fail fast. Better to say "not here"
+// than to walk an entire drive looking.
+r = await align(join(root, "toodeep"), "toodeep");
 check("beyond max depth fails", !r.ok);
-check("failure is fast", r.fsCalls < 500, `${r.fsCalls} fs calls`);
+check("failure is fast", r.fsCalls < 800, `${r.fsCalls} fs calls`);
+
+// A wide, deep, empty tree must not turn into a 200^3 walk.
+const t0 = Date.now();
+r = await align(join(root, "wide"), "wide");
+check("wide empty tree fails", !r.ok);
+check("wide tree stays bounded", Date.now() - t0 < 5000 && r.fsCalls < 60000,
+  `${r.fsCalls} fs calls in ${Date.now() - t0}ms`);
 
 // Two equally good copies must be reported, not silently chosen between.
 r = await align(join(root, "twin"), "twin");

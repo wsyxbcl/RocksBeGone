@@ -90,7 +90,7 @@
     .lede a { color: var(--accent); text-underline-offset: 2px; }
     .lede { color: var(--muted); margin: 0 0 22px; }
     .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 18px; margin-bottom: 16px; }
-    .row { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+    .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
     .file { display: inline-block; border: 1px dashed var(--accent); color: var(--accent); background: none; font: inherit; border-radius: 8px; padding: 11px 16px; cursor: pointer; font-weight: 600; }
     .file.disabled, .file:disabled { opacity: 0.4; pointer-events: none; }
     label.file input { display: none; }
@@ -131,7 +131,9 @@
     .metrics { display: flex; gap: 22px; margin-top: 14px; flex-wrap: wrap; }
     /* Which folder is a camera is a property of the dataset, settled once — so it
        sits with loading, not with the parameters you keep revisiting. */
-    .camera-setup { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+    /* In the button row now, so it aligns with the buttons rather than sitting
+       on its own baseline below them. */
+    .camera-setup { display: flex; align-items: center; gap: 7px; flex-wrap: nowrap; }
     .camera-setup > label { font-size: 0.82rem; font-weight: 600; }
     .camera-setup[hidden] { display: none; }
     .camera-setup .warn { color: var(--accent); font-weight: 600; }
@@ -163,30 +165,12 @@
       font-size: 0.82rem; color: var(--muted); line-height: 1.5; }
     .precompute { position: relative; }
     .precompute[hidden] { display: none; }
-    .camera-setup select { font: inherit; font-size: 0.82rem; padding: 3px 6px; max-width: 220px;
+    .camera-setup select { font: inherit; font-size: 0.82rem; padding: 3px 6px; max-width: 140px;
       border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); }
     /* The card had a large empty right half; put the current parameters there and
        make the whole block the way in to tuning. */
-    /* The three input steps. Muted ahead, solid now, ticked behind — enough to
-       show the order without a wizard that takes the page over. */
-    .steps { list-style: none; display: flex; flex-direction: column; gap: 2px; }
-    .step { display: flex; gap: 12px; align-items: flex-start; padding: 6px 0; }
-    .step-n { flex: none; width: 22px; height: 22px; margin-top: 5px; border-radius: 50%;
-      display: grid; place-items: center; font-size: 0.75rem; font-weight: 600;
-      border: 1px solid var(--line); color: var(--muted); }
-    .step-body { min-width: 0; flex: 1; }
-    .step-title { font-weight: 600; margin-bottom: 2px; }
-    .step.is-later { opacity: 0.45; }
-    .step.is-later .file { pointer-events: none; }
-    .step.is-now > .step-n { border-color: var(--accent); color: var(--accent); }
-    .step.is-done > .step-n { border-color: var(--accent); background: var(--accent); color: #fff; }
-    .step.is-done .step-title, .step.is-done .file { font-weight: 600; }
-    /* What the .json says to look for. Monospace because these are literal
-       folder names the user has to match against a file dialog. */
-    .want { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.82rem;
-      color: var(--ink); background: var(--field); border-radius: 6px;
-      padding: 7px 10px; margin-top: 5px; display: inline-block; max-width: 100%;
-      overflow-x: auto; white-space: nowrap; }
+    .camera-detail { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+    .camera-detail[hidden] { display: none; }
     .loadcard { display: flex; gap: 24px; align-items: stretch; }
     .loadcard-main { flex: 1 1 auto; min-width: 0; }
     /* Same weight as the two Load buttons — these are the three things you set
@@ -425,32 +409,19 @@
 
     <div class="card loadcard">
       <div class="loadcard-main">
-      <!-- Three ordered steps. Step 2 is guidance, not a choice: the .json already
-           determines which folder is wanted, so telling the user what to look for
-           beats asking them to work it out and correcting them afterwards. -->
-      <ol class="steps" id="steps">
-        <li class="step is-now" id="step-json">
-          <span class="step-n">1</span>
-          <div class="step-body">
-            <label class="file">Load MegaDetector .json<input id="json-input" type="file" accept=".json,application/json" /></label>
-          </div>
-        </li>
-        <li class="step is-later" id="step-where">
-          <span class="step-n">2</span>
-          <div class="step-body">
-            <div class="step-title">Where is your media?</div>
-            <p class="hint" id="where-hint">Load a .json first — it says which folder to look for.</p>
-          </div>
-        </li>
-        <li class="step is-later" id="step-folder">
-          <span class="step-n">3</span>
-          <div class="step-body">
-            <button class="file disabled" id="folder-fsa">Load media folder</button>
-            <!-- Fallback picker: hidden, triggered programmatically when the File System Access picker is unavailable or blocked (user-activation). -->
-            <input id="folder-input" type="file" webkitdirectory directory multiple hidden />
-          </div>
-        </li>
-      </ol>
+      <!-- The camera folder sits between the two loads because that is its order:
+           it decides how detections are grouped, so it wants confirming against
+           the real folder names before media is loaded, not after. -->
+      <div class="row">
+        <label class="file">1 · Load MegaDetector .json<input id="json-input" type="file" accept=".json,application/json" /></label>
+        <div class="camera-setup" id="camera-setup" hidden>
+          <label for="opt-camlevel">2 · Camera folder</label>
+          <select id="opt-camlevel"></select>
+        </div>
+        <button class="file disabled" id="folder-fsa">3 · Load media folder</button>
+        <!-- Fallback picker: hidden, triggered programmatically when the File System Access picker is unavailable or blocked (user-activation). -->
+        <input id="folder-input" type="file" webkitdirectory directory multiple hidden />
+      </div>
       <p class="hint" id="status">Load a MegaDetector results .json to begin.</p>
       <div class="metrics" id="metrics" hidden>
         <div class="metric"><b id="m-images">–</b><span>media</span></div>
@@ -460,9 +431,9 @@
         <div class="metric"><b id="m-matched">–</b><span>media matched</span></div>
         <div class="metric"><b id="m-reviewed">–</b><span>reviewed</span></div>
       </div>
-      <div class="camera-setup" id="camera-setup" hidden>
-        <label for="opt-camlevel">Camera folder</label>
-        <select id="opt-camlevel"></select>
+      <!-- What the chosen camera level actually produced, kept out of the button
+           row so the row stays a row. -->
+      <div class="camera-detail" id="camera-detail" hidden>
         <span class="hint" id="camera-summary"></span>
         <details id="camera-all"><summary>show all</summary><div id="camera-list"></div></details>
       </div>
@@ -623,7 +594,7 @@
     // ---- Worker RPC (SPEC §5.1): all wasm work runs off the UI thread. --------
     // Module workers cache hard; bump BUILD on any *-worker.js change so a plain
     // reload picks it up (no need to purge cache manually while iterating).
-    const BUILD = "2026-09-07a";
+    const BUILD = "2026-09-07c";
 
     // Canvas cannot read CSS variables, so anything drawn has to look them up.
     const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -746,44 +717,6 @@
       if (!codec) return "unreadable";
       return codec.startsWith("hvc") || codec.startsWith("hev") ? "no hevc" : "no decoder";
     }
-    /// Mark one of the three input steps: "later" (muted), "now", or "done".
-    function setStep(name, state) {
-      const el = $(`step-${name}`);
-      if (!el) return;
-      el.classList.remove("is-later", "is-now", "is-done");
-      el.classList.add(`is-${state}`);
-    }
-
-    /// Say which folder to pick, from what the .json actually contains.
-    ///
-    /// The paths in the .json fully determine the folder wanted, so this is
-    /// shown rather than asked. It is the difference between someone picking
-    /// right the first time and picking wrong, reading an error, and guessing.
-    /// Note this is unrelated to the camera-folder level, which decides how
-    /// detections are grouped, not where files live.
-    function describeWantedFolder() {
-      const hint = $("where-hint");
-      const paths = (state.imageFiles || []).filter(Boolean);
-      if (!paths.length) { hint.textContent = "This .json lists no media paths."; return; }
-
-      // The first component of each path is the folder that must sit directly
-      // inside whatever the user picks. Depth-1 paths (a bare filename) are the
-      // exception: then the files themselves are what to look for.
-      const heads = [...new Set(paths.map((p) => p.split(/[\\/]/).filter(Boolean)[0]).filter(Boolean))].sort();
-      const nested = paths.some((p) => p.split(/[\\/]/).filter(Boolean).length > 1);
-      const shown = heads.slice(0, 3);
-      const rest = heads.length - shown.length;
-      hint.innerHTML =
-        (nested
-          ? `Pick the folder that <strong>directly contains</strong> these:`
-          : `Pick the folder that <strong>directly contains</strong> these files:`) +
-        `<span class="want">` + shown.map((h) => escapeHtml(h) + (nested ? "/" : "")).join("  ") +
-        (rest > 0 ? `  …${rest.toLocaleString()} more` : "") + `</span>`;
-    }
-
-    const escapeHtml = (s) => String(s).replace(/[&<>"']/g,
-      (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-
     // Hand the picked directory handle to the workers; each detects the path
     // offset from sample media paths. Returns { ok, offset } / { ok:false, error }.
     async function mediaSetRoot(rootHandle, samplePaths, onProgress) {
@@ -1017,8 +950,6 @@
         renderStats();
         $("folder-fsa").classList.remove("disabled");
         $("folder-fsa").disabled = false;
-        describeWantedFolder();
-        setStep("json", "done"); setStep("where", "now"); setStep("folder", "now");
         status.textContent = `Loaded ${file.name}. ${state.groups.length.toLocaleString()} candidate group(s).`;
         goToGroup(0);
         updateExportBar();
@@ -1394,6 +1325,7 @@
       select.value = String(state.options.n_dir_levels_from_leaf);
       if (!select.value) select.value = "0";
       $("camera-setup").hidden = false;
+      $("camera-detail").hidden = false;
       renderCameraCheck();
     }
 
@@ -1767,6 +1699,7 @@
       // code) is the long freeze before this point.
       const files = [...(event.target.files || [])];
       if (!files.length) return;
+      clearError();
       const t0 = performance.now();
       status.textContent = `Read ${files.length.toLocaleString()} files. Matching to the json…`;
       await new Promise((r) => requestAnimationFrame(r)); // let the status paint first
@@ -1814,7 +1747,6 @@
           (missing ? `, ${missing.toLocaleString()} missing/ambiguous` : "") +
           `.`;
         $("precompute").hidden = false;
-        setStep("where", "done"); setStep("folder", "done");
         goToGroup(currentIndex); // re-render current group, now with crops + prefetch
       } catch (err) {
         showError(err);
@@ -1828,6 +1760,7 @@
     // Fallback: the hidden `webkitdirectory` <input> (other browsers, or when the
     // FSA picker is blocked for lack of user activation).
     async function alignDirectoryHandle(rootHandle) {
+      clearError();
       status.textContent = `Linking “${rootHandle.name}” to the json paths…`;
       const suspicious = [...new Set(state.groups.flatMap((g) => g.instances.map((i) => i.det_ref.image_index)))];
       // Any suspicious media works as an alignment probe — a video-only document
@@ -1842,14 +1775,14 @@
         // The one error most likely to be seen by someone who has done nothing
         // wrong. It used to end "any level above works", which is not true and
         // sent at least one person hunting for a data problem they did not have:
-        // the search descends two levels, no further. Say what was tried, and
+        // the search descends three levels, no further. Say what was tried, and
         // name the folder to look for instead of the file.
         const want = samples[0] || "";
         const wantDir = want.split(/[\\/]/).filter(Boolean)[0] || want;
         throw new Error(
           `No media found under “${rootHandle.name}”. This .json describes paths ` +
           `like “${want}”, so the folder you pick needs to contain “${wantDir}” — ` +
-          `directly, or up to two levels down. Pick that folder, or one just above it.`);
+          `directly, or up to three levels down. Pick that folder, or one above it.`);
       }
       collapseTuning();
       state.folderMode = "fsa";
@@ -1888,7 +1821,6 @@
             ? `. ${res.tiedWith.length} folders here hold this media — using ${prefix.join("/")}. Pick it directly if that is the wrong copy.`
             : `.`);
       $("precompute").hidden = false;
-      setStep("where", "done"); setStep("folder", "done");
       goToGroup(currentIndex);
     }
 
@@ -3286,14 +3218,19 @@
       $("iou-compute").textContent = "Compute IoU sensitivity";
       $("folder-fsa").classList.add("disabled");
       $("folder-fsa").disabled = true;
-      setStep("json", "now"); setStep("where", "later"); setStep("folder", "later");
-      $("where-hint").textContent = "Load a .json first — it says which folder to look for.";
       errorEl.textContent = "";
       $("results").innerHTML = "";
     }
     function showError(err) {
       errorEl.textContent = String(err?.message || err);
       status.textContent = "Something went wrong.";
+    }
+    /// Retrying is the normal response to these errors — picking the wrong folder
+    /// and picking again is the whole loop — so a new attempt has to clear the
+    /// last one's complaint. Without this, a successful load sat underneath a
+    /// stale "no media found" and looked like it had failed too.
+    function clearError() {
+      errorEl.textContent = "";
     }
   </script>
 </body>

@@ -138,9 +138,14 @@ async function resolveFile(path, strip = stripComponents, prefix = rootPrefix, s
 /// can mix path shapes — stills written one way, videos another — and an offset
 /// that happens to resolve one sample and nothing else used to be accepted
 /// silently, which surfaces as blank crops everywhere rather than as an error.
-const MAX_DESCENT_DEPTH = 2;    // how many unmentioned levels a pick may sit above
-const MAX_DIRS_PER_LEVEL = 200; // stop collecting after this many subfolders
+const MAX_DESCENT_DEPTH = 3;      // how many unmentioned levels a pick may sit above
+const MAX_DIRS_PER_LEVEL = 200;   // stop collecting after this many subfolders
 const MAX_ENTRIES_SCANNED = 4000; // ...and stop *looking* after this many entries
+// The frontier is cumulative, so the per-level cap alone bounds nothing: three
+// levels of 200 is eight million folders. This caps the search as a whole.
+// Reaching it means the pick was far too high — a home directory rather than a
+// media root — and the answer there is to say "not found", not to keep walking.
+const MAX_PREFIXES = 3000;
 
 /// Subfolder names directly under `handle`, bounded twice over.
 ///
@@ -201,9 +206,11 @@ async function detectOffset(samplePaths, onProgress = null) {
   // it. Widening one probe at a time keeps a 200-child folder to 200 lookups
   // rather than 200 x 8 x offsets.
   let frontier = [[]];
+  let examined = 0;
   for (let depth = 0; depth < MAX_DESCENT_DEPTH; depth++) {
     const next = [];
     for (const prefix of frontier) {
+      if (examined + next.length >= MAX_PREFIXES) break;
       let parent = rootHandle;
       try {
         let key = "";
@@ -216,6 +223,7 @@ async function detectOffset(samplePaths, onProgress = null) {
       for (const name of await childDirNames(parent)) next.push([...prefix, name]);
     }
     if (!next.length) break;
+    examined += next.length;
     onProgress?.({ depth: depth + 1, candidates: next.length });
 
     // Cheap pass: one probe, offset 0 — the shape a correctly-structured
@@ -246,6 +254,7 @@ async function detectOffset(samplePaths, onProgress = null) {
       const tied = scored.filter((s) => s.hits === best.hits);
       return done(best, probes.length, tied.length > 1 ? tied.map((t) => t.prefix) : null);
     }
+    if (examined >= MAX_PREFIXES) break;
     frontier = next;
   }
 
