@@ -23,8 +23,12 @@ let session = null;
 self.onmessage = async (event) => {
   const { id, type } = event.data;
   try {
-    const { RdeSession, default_options, match_paths } = await ready;
+    const { RdeSession, default_options, match_paths, version } = await ready;
     switch (type) {
+      // The release number, straight from the binary. The page has no other way
+      // to know it — a static file cannot read Cargo.toml — and a second copy in
+      // the HTML is a second thing to forget to bump.
+      case "version": return reply(id, { version: version() });
       case "load": {
         // `bytes` arrives as a transferred ArrayBuffer (zero-copy, SPEC §2.1).
         const t = performance.now();

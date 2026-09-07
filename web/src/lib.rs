@@ -11,6 +11,17 @@ pub fn start() {
     console_error_panic_hook::set_once();
 }
 
+/// The release this build belongs to.
+///
+/// The page is a static file and cannot read `Cargo.toml`, so it used to carry
+/// its own copy of the version and a test to stop the two drifting. This is the
+/// same number without the second place to edit: the wasm is built from the
+/// workspace, so cargo already knows it.
+#[wasm_bindgen]
+pub fn version() -> String {
+    env!("CARGO_PKG_VERSION").to_owned()
+}
+
 /// Default RDE options as JSON, for initializing the UI controls.
 #[wasm_bindgen]
 pub fn default_options() -> String {

@@ -110,7 +110,7 @@
        without it — and "hard-reload and check the build" needs something to check. */
     .build { float: right; font-size: 0.72rem; font-weight: 400; color: var(--muted);
       letter-spacing: 0.02em; font-variant-numeric: tabular-nums; }
-    .topbar { display: flex; align-items: center; gap: 16px; margin-bottom: 4px; }
+    .topbar { display: flex; align-items: center; gap: 16px; margin-bottom: 4px; position: relative; }
     .brand { display: flex; align-items: baseline; gap: 10px; }
     .brand h1 { margin: 0; }
     .topbar-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
@@ -126,7 +126,10 @@
 
     /* Shortcuts live in a panel you open, not in the status line where they were
        read once and then re-read forever. */
-    .sheet { position: absolute; right: 0; top: 46px; z-index: 40; width: 340px;
+    /* Hung off the bar itself, not a fixed 46px: that number was measured once
+       and then the bar grew, leaving the panel 11px over the icons it opens
+       from. */
+    .sheet { position: absolute; right: 0; top: calc(100% + 8px); z-index: 40; width: 340px;
       background: var(--card); border: 1px solid var(--line); border-radius: 10px;
       padding: 12px 14px; box-shadow: 0 12px 32px var(--shadow); }
     .sheet[hidden] { display: none; }
@@ -417,69 +420,72 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.9a3.4 3.4 0 0 0-.9-2.6c3-.3 6.2-1.5 6.2-6.7A5.2 5.2 0 0 0 19.9 5a4.9 4.9 0 0 0-.1-3.6s-1.1-.3-3.7 1.4a12.6 12.6 0 0 0-6.6 0C6.9 1.1 5.8 1.4 5.8 1.4A4.9 4.9 0 0 0 5.7 5a5.2 5.2 0 0 0-1.4 3.6c0 5.2 3.2 6.4 6.2 6.7a3.4 3.4 0 0 0-.9 2.6V22"/></svg>
         </a>
       </div>
+
+      <div class="sheet" id="shortcuts" hidden>
+        <div class="sheet-head"><strong>Keyboard</strong><button class="icon" id="shortcuts-close" aria-label="Close">×</button></div>
+        <dl class="keys">
+          <dt>← →</dt><dd>previous / next group</dd>
+          <dt>Enter</dt><dd>done with this group, go to the next unreviewed</dd>
+          <dt>k</dt><dd>keep every member of this group</dd>
+          <dt>d</dt><dd>remove every member of this group</dd>
+          <dt>f</dt><dd>whole frame ⇄ the exact frame this detection came from</dd>
+        </dl>
+      </div>
+
+      <div class="sheet" id="settings" hidden>
+        <div class="sheet-head"><strong>Settings</strong><button class="icon" id="settings-close" aria-label="Close">×</button></div>
+
+        <div class="setting">
+          <div class="setting-row">
+            <label for="opt-exemplars">Crops per group</label>
+            <input type="number" id="opt-exemplars" min="2" max="60" step="1" />
+            <button class="help" id="exemplars-help" aria-label="How these are chosen" title="How these are chosen">?</button>
+          </div>
+          <label class="setting-check"><input type="checkbox" id="opt-showall" /> Show all</label>
+          <div class="sheet inline" id="exemplars-why" hidden>
+            A group can hold hundreds of near-identical crops, so a few are shown
+            that were picked to <em>disagree</em> with each other.
+            <br /><br />
+            They are sampled in two halves. One half is taken straight off the
+            top of the confidence ranking: an animal that keeps using the same
+            trail scores high, so that is where a real one shows up. The other
+            half is spread evenly across the different files in the group and
+            across the run, because a rock's appearances differ only by the
+            camera shifting or the light changing.
+            <br /><br />
+            <strong>Show all</strong> displays every member of every group
+            instead of a sample — the same as pressing “Show all” on each group
+            in turn.
+          </div>
+        </div>
+
+        <div class="setting">
+          <label class="setting-check"><input type="checkbox" id="exact-frame" /> Exact frame
+            <button class="help" id="exact-help" aria-label="What this changes" title="What this changes">?</button>
+          </label>
+          <p class="hint">Toggle while reviewing with <kbd>f</kbd>.</p>
+          <div class="sheet inline" id="exact-why" hidden>
+            For a video, the preview normally shows the clip's <strong>first
+            frame</strong> — quick to decode, and enough to recognise the place.
+            <br /><br />
+            Turn this on to decode <strong>the frame the detection actually came
+            from</strong>. That is the one to look at when deciding whether a box
+            is a rock or an animal, at the cost of decoding into the clip.
+            <br /><br />
+            Still images are unaffected.
+          </div>
+        </div>
+
+        <p class="settings-foot" id="settings-version"></p>
+      </div>
     </header>
     <p class="lede">Review repeat detections in MegaDetector results — see <a href="https://lila.science/repeat-detection-elimination" target="_blank" rel="noopener">repeat-detection elimination</a> for how the method works and when it misleads.<br />
       Everything runs in your browser — your results and media never leave this machine.</p>
 
-    <div class="sheet" id="shortcuts" hidden>
-      <div class="sheet-head"><strong>Keyboard</strong><button class="icon" id="shortcuts-close" aria-label="Close">×</button></div>
-      <dl class="keys">
-        <dt>← →</dt><dd>previous / next group</dd>
-        <dt>Enter</dt><dd>done with this group, go to the next unreviewed</dd>
-        <dt>k</dt><dd>keep every member of this group</dd>
-        <dt>d</dt><dd>remove every member of this group</dd>
-        <dt>f</dt><dd>whole frame ⇄ the exact frame this detection came from</dd>
-      </dl>
-    </div>
 
     <!-- Settings: the things that hold across every group and every document,
          as opposed to the parameters, which belong to this document and change
          what counts as a candidate. -->
-    <div class="sheet" id="settings" hidden>
-      <div class="sheet-head"><strong>Settings</strong><button class="icon" id="settings-close" aria-label="Close">×</button></div>
-
-      <div class="setting">
-        <div class="setting-row">
-          <label for="opt-exemplars">Crops per group</label>
-          <input type="number" id="opt-exemplars" min="2" max="60" step="1" />
-          <button class="help" id="exemplars-help" aria-label="How these are chosen" title="How these are chosen">?</button>
-        </div>
-        <label class="setting-check"><input type="checkbox" id="opt-showall" /> Show every member</label>
-        <div class="sheet inline" id="exemplars-why" hidden>
-          A group can hold hundreds of near-identical crops, so a few are shown
-          that were picked to <em>disagree</em> with each other.
-          <br /><br />
-          Half come straight off the top of the confidence ranking — an animal
-          that keeps using the same trail scores high, so that is where a real
-          one shows up. The other half spread across the different files in the
-          group and across the run, because a rock's appearances differ only by
-          the camera shifting or the light changing.
-          <br /><br />
-          <strong>Show every member</strong> decodes the whole group instead.
-          Expect roughly ten times the work, and some groups run to several
-          hundred crops.
-        </div>
-      </div>
-
-      <div class="setting">
-        <label class="setting-check"><input type="checkbox" id="exact-frame" /> Exact frame
-          <button class="help" id="exact-help" aria-label="What this changes" title="What this changes">?</button>
-        </label>
-        <p class="hint">Toggle while reviewing with <kbd>f</kbd>.</p>
-        <div class="sheet inline" id="exact-why" hidden>
-          For a video, the preview normally shows the clip's <strong>first
-          frame</strong> — quick to decode, and enough to recognise the place.
-          <br /><br />
-          Turn this on to decode <strong>the frame the detection actually came
-          from</strong>. That is the one to look at when deciding whether a box
-          is a rock or an animal, at the cost of decoding into the clip.
-          <br /><br />
-          Still images are unaffected.
-        </div>
-      </div>
-
-      <p class="settings-foot" id="settings-version"></p>
-    </div>
 
     <div class="card loadcard">
       <div class="loadcard-main">
@@ -666,11 +672,11 @@
     // ---- Worker RPC (SPEC §5.1): all wasm work runs off the UI thread. --------
     // Module workers cache hard; bump BUILD on any *-worker.js change so a plain
     // reload picks it up (no need to purge cache manually while iterating).
-    const BUILD = "2026-09-07j";
-    // The release this page belongs to. Kept in step with the workspace
-    // `Cargo.toml` by `rde-core/tests/version.rs`, which fails the build rather
-    // than let a released binary and its page disagree about what they are.
-    const VERSION = "0.1.1";
+    const BUILD = "2026-09-07k";
+    // Filled from the wasm once it is up — cargo already knows the version, and
+    // a copy here would be a second thing to bump. Until then the build stamp
+    // alone identifies the page.
+    let VERSION = "";
 
     // Canvas cannot read CSS variables, so anything drawn has to look them up.
     const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -732,12 +738,13 @@
     function applySettings({ rerender = true } = {}) {
       $("opt-exemplars").value = String(settings.exemplars);
       $("opt-showall").checked = settings.showAll;
-      // "Show every member" makes the count moot, so it stops accepting input
+      // "Show all" makes the count moot, so it stops accepting input
       // rather than sitting there looking as if it still decides something.
       $("opt-exemplars").disabled = settings.showAll;
       $("exact-frame").checked = settings.exactFrame;
       exactFrame = settings.exactFrame;
-      $("settings-version").textContent = `RocksBeGone ${VERSION} · build ${BUILD}`;
+      $("settings-version").textContent =
+        `RocksBeGone ${VERSION ? VERSION + " · " : ""}build ${BUILD}`;
       saveSettings();
       if (rerender && state.groups.length) {
         // Which crops a group shows just changed, so anything cached about the
@@ -3436,6 +3443,13 @@
     // Last, because it touches controls and module state declared above it.
     loadSettings();
     applySettings({ rerender: false });
+    // The wasm boots on its own schedule; fill the version in when it answers.
+    // Failure here costs a line in a panel, so it must not surface as an error.
+    call("version").then((r) => {
+      VERSION = r.version || "";
+      $("settings-version").textContent =
+        `RocksBeGone ${VERSION ? VERSION + " · " : ""}build ${BUILD}`;
+    }).catch(() => { /* the build stamp still identifies the page */ });
   </script>
 </body>
 </html>
