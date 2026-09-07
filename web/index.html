@@ -380,8 +380,19 @@
     .ladder tr.at .bar i { background: var(--accent); }
 
     .workspace { display: flex; gap: 20px; align-items: stretch; flex: 1 1 auto; min-height: 0; margin-top: 0; }
-    .review { flex: 1 1 auto; min-width: 0; overflow-y: auto; padding: 2px 6px 24px 0; }
-    .preview { flex: 0 0 400px; overflow-y: auto; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+    /* The tile grid packs whole 100px columns and abandons the remainder, so the
+       review column is sized to an exact number of them (see fitReviewColumns)
+       and the leftover goes to the context panel rather than sitting blank.
+       `flex: 0 0 auto` because that width is computed, not negotiated. */
+    /* No bottom padding: the card fills this column now, so any would show as the
+       card stopping short of the panel beside it. */
+    .review { flex: 0 0 auto; min-width: 0; overflow-y: auto; padding: 2px 6px 0 0;
+      display: flex; flex-direction: column; }
+    /* The card used to stop at its content while the panel beside it ran the
+       full height, so two boxes meant to be a pair did not look like one. */
+    #results { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
+    #results > .card { flex: 1 1 auto; margin-bottom: 0; }
+    .preview { flex: 1 1 auto; min-width: 460px; overflow-y: auto; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
     .preview h2 { font-size: 0.95rem; margin: 0 0 10px; }
     .mark { width: 11px; height: 11px; vertical-align: -1px; fill: currentColor; }
     .legend { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-wrap: wrap;
@@ -398,7 +409,7 @@
       body { height: auto; overflow: auto; display: block; }
       main { height: auto; min-height: 0; display: block; padding-bottom: 24px; }
       .workspace { flex-direction: column; min-height: 0; }
-      .review { overflow: visible; }
+      .review { overflow: visible; width: auto !important; }
       .preview { overflow: visible; flex-basis: auto; width: 100%; }
       .mark { width: 11px; height: 11px; vertical-align: -1px; fill: currentColor; }
     .legend { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-wrap: wrap;
@@ -700,7 +711,7 @@
     // ---- Worker RPC (SPEC §5.1): all wasm work runs off the UI thread. --------
     // Module workers cache hard; bump BUILD on any *-worker.js change so a plain
     // reload picks it up (no need to purge cache manually while iterating).
-    const BUILD = "2026-09-07n";
+    const BUILD = "2026-09-07p";
     // Filled from the wasm once it is up — cargo already knows the version, and
     // a copy here would be a second thing to bump. Until then the build stamp
     // alone identifies the page.
@@ -782,6 +793,53 @@
         updateExportBar();
       }
     }
+
+    // ---- Review column width -------------------------------------------------
+    // The tile grid is `repeat(auto-fill, 92px)`: it lays down whole columns and
+    // leaves whatever is left over blank. On a wide window that remainder was
+    // most of a column of dead space inside the review card, while the context
+    // panel — the thing you actually study — sat at a fixed 400px.
+    //
+    // So the review column is sized to an exact number of tile columns and the
+    // context panel takes the rest. Nothing is stretched: the crops are decoded
+    // at 92px and upscaling them to fill would just make them soft.
+    const TILE_PX = 92;              // must match TILE in media-worker.js
+    const TILE_GAP = 8;              // .tiles gap
+    // The floor the context panel gets before the review is allowed another tile
+    // column. It was a flat 400px; reclaiming the slack for the review instead
+    // would have taken it DOWN to 384 on a wide window, which is the opposite of
+    // the point. Rounding the review down to whole columns hands the panel
+    // whatever is left over on top of this.
+    const PREVIEW_MIN = 460;
+    const STACK_BELOW = 980;         // the breakpoint where the columns stack
+
+    function fitReviewColumns() {
+      const review = document.querySelector(".review");
+      const workspace = document.querySelector(".workspace");
+      if (!review || !workspace) return;
+      if (window.innerWidth <= STACK_BELOW) { review.style.width = ""; return; }
+
+      // Everything between the review column's edge and the tile grid's.
+      const style = getComputedStyle(review);
+      const card = document.querySelector("#results > .card");
+      const cardStyle = card ? getComputedStyle(card) : null;
+      const chrome = parseFloat(style.paddingRight) + parseFloat(style.paddingLeft)
+        + (cardStyle
+          ? parseFloat(cardStyle.paddingLeft) + parseFloat(cardStyle.paddingRight)
+            + parseFloat(cardStyle.borderLeftWidth) + parseFloat(cardStyle.borderRightWidth)
+          : 0);
+
+      const gap = parseFloat(getComputedStyle(workspace).gap) || 20;
+      const forTiles = workspace.clientWidth - gap - PREVIEW_MIN - chrome;
+      const pitch = TILE_PX + TILE_GAP;
+      // At least two columns: a single-column review is worse than a little slack.
+      const columns = Math.max(2, Math.floor((forTiles + TILE_GAP) / pitch));
+      review.style.width = `${columns * pitch - TILE_GAP + chrome}px`;
+    }
+
+    // Re-fit when the window changes, and after a render that may have added the
+    // card this measures.
+    new ResizeObserver(fitReviewColumns).observe(document.querySelector(".workspace"));
 
     // ---- Focus mode ----------------------------------------------------------
     // Hides the setup panel so the crops and the context panel have the window.
@@ -2862,6 +2920,9 @@
       currentGrid = null;
       const results = $("results");
       results.innerHTML = "";
+      // The width depends on the card's padding, so it can only be measured once
+      // a card exists — the observer alone would size against an empty column.
+      queueMicrotask(fitReviewColumns);
       if (!state.groups.length) {
         results.innerHTML = `<div class="card placeholder">No candidate groups at these parameters — loosen the occurrence threshold or the clustering settings above.</div>`;
         return;
