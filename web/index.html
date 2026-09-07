@@ -127,6 +127,9 @@
     .icon:hover { background: var(--hover); color: var(--ink); }
     .icon svg { width: 17px; height: 17px; fill: none; stroke: currentColor;
       stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+    .topbar-progress { display: none; color: var(--muted); font-size: 0.85rem;
+      font-variant-numeric: tabular-nums; }
+    body.focused .topbar-progress { display: inline; }
     .topbar-sep { width: 1px; height: 20px; background: var(--line); margin: 0 2px; }
 
     /* Shortcuts live in a panel you open, not in the status line where they were
@@ -174,7 +177,13 @@
       text-align: center; }
     .keys dd { margin: 0; color: var(--muted); }
 
-    .metrics { display: flex; gap: 22px; margin-top: 14px; flex-wrap: wrap; }
+    /* A grid, not a flex row: sized by content, the columns landed at 39, 124,
+       226, 378, 480 and 610 — spacing dictated by label length rather than by
+       anything about the numbers. Equal columns give them one rhythm, and a
+       long label wraps under its own number instead of shoving the next one. */
+    .metrics { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 10px 12px; margin-top: 14px; }
+    @media (max-width: 760px) { .metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
     /* Which folder is a camera is a property of the dataset, settled once — so it
        sits with loading, not with the parameters you keep revisiting. */
     .camera-detail .warn { color: var(--accent); font-weight: 600; }
@@ -416,6 +425,10 @@
   <main>
     <header class="topbar">
       <div class="brand"><h1>RocksBeGone</h1></div>
+      <!-- Focus mode hides the metrics, and "how much is left" is the one number
+           you want most while working through them. It moves here rather than
+           being duplicated: shown only when the row it comes from is away. -->
+      <span class="topbar-progress" id="topbar-progress"></span>
       <div class="topbar-actions">
         <button class="mini" id="session-save" disabled>Save session</button>
         <label class="mini file-mini">Load session<input id="session-input" type="file" accept=".json,application/json" hidden /></label>
@@ -687,7 +700,7 @@
     // ---- Worker RPC (SPEC §5.1): all wasm work runs off the UI thread. --------
     // Module workers cache hard; bump BUILD on any *-worker.js change so a plain
     // reload picks it up (no need to purge cache manually while iterating).
-    const BUILD = "2026-09-07m";
+    const BUILD = "2026-09-07n";
     // Filled from the wasm once it is up — cargo already knows the version, and
     // a copy here would be a second thing to bump. Until then the build stamp
     // alone identifies the page.
@@ -1245,10 +1258,10 @@
     function updateMatchedMetric() {
       if (!state.folderLoaded) return;
       const media = new Set(state.groups.flatMap((g) => g.instances.map((i) => i.det_ref.image_index)));
-      if (state.folderMode === "fsa") { $("m-matched").textContent = String(media.size); return; }
+      if (state.folderMode === "fsa") { $("m-matched").textContent = media.size.toLocaleString(); return; }
       let matched = 0;
       for (const idx of media) if (state.fileByImageIndex.has(idx)) matched++;
-      $("m-matched").textContent = `${matched}/${media.size}`;
+      $("m-matched").textContent = `${matched.toLocaleString()}/${media.size.toLocaleString()}`;
     }
 
 
@@ -1694,6 +1707,13 @@
         ? `${p.decided.toLocaleString()}/${(p.decided + p.pending).toLocaleString()}`
         : "–";
       $("m-reviewed").title = `${p.reviewed} groups done · ${p.partial} partial · ${p.unreviewed} untouched`;
+      // Groups, not candidates, because the review moves a group at a time —
+      // "how many left to look at" is the question being answered.
+      const groups = state.groups.length;
+      $("topbar-progress").textContent = groups
+        ? `${p.reviewed.toLocaleString()} of ${groups.toLocaleString()} groups reviewed`
+        : "";
+      $("topbar-progress").title = $("m-reviewed").title;
       updateMatchedMetric();
       renderParams();
     }
@@ -1965,7 +1985,7 @@
         state.folderLoaded = true;
         const videos = [...suspicious].filter((idx) => { const f = state.fileByImageIndex.get(idx); return f && VIDEO_RE.test(f.name); }).length;
         const images = matched - videos;
-        $("m-matched").textContent = `${matched}/${suspicious.size}`;
+        $("m-matched").textContent = `${matched.toLocaleString()}/${suspicious.size.toLocaleString()}`;
         console.log(`[rde] suspicious media: ${suspicious.size} — image ${images}, video ${videos}, missing/ambiguous ${missing}`);
         if (missing) {
           // Show WHY the misses missed: the json path we looked for vs. a picked
@@ -2035,7 +2055,7 @@
       console.log(`[rde] FSA root “${rootHandle.name}”: dropping ${res.offset} leading path ` +
         `component(s)` + (prefix.length ? `, descending into “${prefix.join("/")}”` : "") +
         `, so “${shown}” is looked for under it — ${res.hits}/${res.probes} probes resolved`);
-      $("m-matched").textContent = `${suspicious.length}`;
+      $("m-matched").textContent = suspicious.length.toLocaleString();
       const shaky = res.hits < res.probes;
       // More than one folder under the pick holds the media. We use the first,
       // but the reviewer is the only one who knows which copy they meant.
