@@ -94,6 +94,25 @@
        is not a tidy-up — it is 2.2x the space for the thing being looked at. */
     body.focused .lede, body.focused .loadcard { display: none; }
     body.focused main { padding-top: 12px; }
+    /* The keyboard shortcut and the bar icon were both easy to miss, and the
+       space this reclaims is the whole review area — worth an affordance you
+       cannot walk past. In the accent so it reads as an action, quiet enough
+       not to compete with the step chips above it. */
+    /* Straddles the setup panel's bottom border, centred — the conventional
+       place for "collapse the thing above me", and it costs a row of nothing.
+       Card-coloured so it sits ON the border rather than under it. */
+    .panel-toggle { display: inline-flex; align-items: center; gap: 5px; align-self: center;
+      position: relative; z-index: 2; margin: -27px 0 8px; padding: 2px 12px;
+      font: inherit; font-size: 0.75rem; font-weight: 600; color: var(--accent);
+      background: var(--card); cursor: pointer;
+      border: 1px solid var(--accent); border-radius: 999px; }
+    .panel-toggle:hover { background: color-mix(in srgb, var(--accent) 12%, var(--card)); }
+    .panel-toggle[hidden] { display: none; }
+    /* With the panel gone there is no border to sit on. */
+    body.focused .panel-toggle { margin: 0 0 10px; }
+    .panel-toggle svg { width: 15px; height: 15px; fill: none; stroke: currentColor;
+      stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform 0.15s; }
+    body.focused .panel-toggle svg { transform: rotate(180deg); }
     .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 18px; margin-bottom: 16px; }
     .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
     /* The three inputs share one shape, and carry two independent things.
@@ -145,6 +164,9 @@
     .setting:first-of-type { border-top: 0; padding-top: 2px; }
     .setting-row { display: flex; align-items: center; gap: 8px; }
     .setting-row > label { font-weight: 600; flex: 1; }
+    .setting-row select { font: inherit; font-size: 0.86rem; padding: 4px 6px;
+      border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink);
+      cursor: pointer; }
     .setting-row input[type="number"] { font: inherit; width: 4rem; padding: 4px 6px;
       border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); }
     /* "Show all" makes the count moot. It was already disabled, but nothing said
@@ -220,9 +242,14 @@
     .camera-detail select { font: inherit; font-size: 0.82rem; padding: 4px 8px; max-width: 320px;
       border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink);
       cursor: pointer; }
+    /* Step 2's chip is a label for this, but it now sits below rather than around
+       it, so the focus it hands over has to be visible from where the eye was. */
+    .camera-detail select:focus { outline: 2px solid var(--accent); outline-offset: 1px;
+      border-color: var(--accent); }
     /* The card had a large empty right half; put the current parameters there and
        make the whole block the way in to tuning. */
-    .camera-detail { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+    .camera-detail { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+      margin-top: 12px; position: relative; }
     .camera-detail[hidden] { display: none; }
     .loadcard { display: flex; gap: 24px; align-items: stretch; }
     .loadcard-main { flex: 1 1 auto; min-width: 0; }
@@ -249,6 +276,13 @@
 
     .group { margin-bottom: 16px; }
     .group-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+    /* Quiet enough to ignore once learned, present enough to answer the question
+       without leaving the crops. */
+    .rubric { margin: 0 0 10px; font-size: 0.82rem; color: var(--muted); }
+    .rubric b { font-weight: 600; }
+    .rubric .is-current { color: var(--box-current); }
+    .rubric .is-keep { color: var(--keep); }
+    .rubric .is-drop { color: var(--remove); }
     .group-head h3 { margin: 0; font-size: 1rem; }
     .group-head .meta { color: var(--muted); font-size: 0.85rem; }
     .group-head .actions { margin-left: auto; display: flex; gap: 8px; }
@@ -476,6 +510,16 @@
 
         <div class="setting">
           <div class="setting-row">
+            <label for="opt-camdir">Count camera level from</label>
+            <select id="opt-camdir">
+              <option value="leaf">the image</option>
+              <option value="top">the top folder</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="setting">
+          <div class="setting-row">
             <label for="opt-exemplars">Exemplars per group</label>
             <input type="number" id="opt-exemplars" min="2" max="60" step="1" />
             <button class="help" id="exemplars-help" aria-label="How these are chosen" title="How these are chosen">?</button>
@@ -535,7 +579,7 @@
            the row without truncating the folder names it exists to show. -->
       <div class="row">
         <label class="file is-must is-next" id="step-json">1 · Load MegaDetector .json<input id="json-input" type="file" accept=".json,application/json" /></label>
-        <label class="file is-optional is-todo" id="step-camera" for="opt-camlevel">2 · Confirm camera folder</label>
+        <label class="file is-optional is-todo" id="step-camera" for="opt-camlevel">2 · Confirm camera level</label>
         <button class="file is-must is-todo" id="folder-fsa">3 · Load media folder</button>
         <!-- Fallback picker: hidden, triggered programmatically when the File System Access picker is unavailable or blocked (user-activation). -->
         <input id="folder-input" type="file" webkitdirectory directory multiple hidden />
@@ -544,9 +588,22 @@
            show a whole folder name, which is the entire point of offering names
            rather than a depth number. -->
       <div class="camera-detail" id="camera-detail" hidden>
+        <span class="hint">Camera level in the folder tree:</span>
         <select id="opt-camlevel"></select>
+        <button class="help" id="camlevel-help" aria-label="How the level is counted" title="How the level is counted">?</button>
         <span class="hint" id="camera-summary"></span>
         <details id="camera-all"><summary>show all</summary><div id="camera-list"></div></details>
+        <div class="sheet inline" id="camlevel-why" hidden>
+          Detections are only compared within the same camera.
+          <br /><br />
+          By default, levels are counted up from the image; Settings can count
+          down from the top folder instead.
+          <br /><br />
+          Neither handles a .json that varies at both ends. If the folder above
+          the camera and the folder below it both differ between files, no single
+          level is right for all of them, and the fix is to make the folders
+          consistent. Check the camera list under “show all” before you start.
+        </div>
       </div>
       <p class="hint" id="status">Load a MegaDetector results .json to begin.</p>
       <div class="metrics" id="metrics" hidden>
@@ -655,6 +712,11 @@
       </div>
     </div>
 
+    <button class="panel-toggle" id="panel-toggle" hidden aria-expanded="true">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg>
+      <span id="panel-toggle-label">Hide setup</span>
+    </button>
+
     <div class="workspace">
       <div class="review"><div id="results"></div></div>
       <aside class="preview">
@@ -717,7 +779,7 @@
     // the settings panel still reporting 0.1.1 after the bump to 0.2.0. The
     // deployed site sends `Cache-Control: no-cache` and so revalidates anyway;
     // this is what protects everything that does not.
-    const BUILD = "2026-09-07q";
+    const BUILD = "2026-09-08d";
     // Filled from the wasm once it is up — cargo already knows the version, and
     // a copy here would be a second thing to bump. Until then the build stamp
     // alone identifies the page.
@@ -760,6 +822,7 @@
       exemplars: DEFAULT_EXEMPLARS,
       showAll: false,
       exactFrame: false,
+      cameraFromTop: false,
     };
 
     function loadSettings() {
@@ -772,6 +835,7 @@
         }
         settings.showAll = Boolean(saved.showAll);
         settings.exactFrame = Boolean(saved.exactFrame);
+        settings.cameraFromTop = Boolean(saved.cameraFromTop);
       } catch { /* first run, or storage disabled */ }
     }
     const saveSettings = () => {
@@ -788,6 +852,7 @@
       $("opt-exemplars").disabled = settings.showAll;
       $("opt-exemplars").closest(".setting-row").classList.toggle("is-off", settings.showAll);
       $("exact-frame").checked = settings.exactFrame;
+      $("opt-camdir").value = settings.cameraFromTop ? "top" : "leaf";
       exactFrame = settings.exactFrame;
       $("settings-version").textContent =
         `RocksBeGone ${VERSION ? VERSION + " · " : ""}build ${BUILD}`;
@@ -863,13 +928,21 @@
       focused = allowed;
       document.body.classList.toggle("focused", allowed);
       const button = $("focus-toggle");
+      // Both controls appear and disappear together — they are one switch, and
+      // the pill went missing when only the icon's visibility was set by hand.
+      button.hidden = !state.groups.length;
       button.setAttribute("aria-pressed", String(allowed));
       button.title = allowed
         ? "Leave focus mode (z)"
         : "Focus mode — hide the setup panel (z)";
       $("focus-icon").innerHTML = `<path d="${allowed ? CONTRACT_ICON : EXPAND_ICON}"/>`;
+      const pill = $("panel-toggle");
+      pill.hidden = !state.groups.length;
+      pill.setAttribute("aria-expanded", String(!allowed));
+      $("panel-toggle-label").textContent = allowed ? "Show setup" : "Hide setup";
     }
     $("focus-toggle").addEventListener("click", () => setFocus(!focused));
+    $("panel-toggle").addEventListener("click", () => setFocus(!focused));
 
     const showSettings = (open) => {
       $("settings").hidden = !open;
@@ -877,7 +950,8 @@
     };
     $("settings-open").addEventListener("click", () => { showShortcuts(false); showSettings($("settings").hidden); });
     $("settings-close").addEventListener("click", () => showSettings(false));
-    for (const [btn, panel] of [["exemplars-help", "exemplars-why"], ["exact-help", "exact-why"]]) {
+    for (const [btn, panel] of [["exemplars-help", "exemplars-why"], ["exact-help", "exact-why"],
+                                ["camlevel-help", "camlevel-why"]]) {
       $(btn).addEventListener("click", (e) => {
         e.preventDefault(); e.stopPropagation();
         $(panel).hidden = !$(panel).hidden;
@@ -894,6 +968,23 @@
     });
     $("exact-frame").addEventListener("change", () => {
       setExactFrame($("exact-frame").checked);
+    });
+    // Changes which folder counts as a camera, so it changes what is compared
+    // with what — the level list has to be rebuilt and the document re-clustered.
+    $("opt-camdir").addEventListener("change", async () => {
+      state.options.camera_from_top = $("opt-camdir").value === "top";
+      settings.cameraFromTop = state.options.camera_from_top;
+      saveSettings();
+      if (!state.fileName) return;
+      fillCameraLevels();
+      state.options.n_dir_levels_from_leaf = Number($("opt-camlevel").value) || 0;
+      status.textContent = "Re-clustering for the new camera level…";
+      try {
+        await recluster();
+        resumeReview(`${state.groups.length.toLocaleString()} candidate group(s).`);
+        renderStats();
+        if (!$("tune").hidden) renderTuning();
+      } catch (err) { showError(err); }
     });
     const worker = new Worker(`./rde-worker.js?v=${BUILD}`, { type: "module" });
     let nextId = 0;
@@ -1227,6 +1318,9 @@
         const loaded = await call("load", { bytes: buffer }, [buffer]);
         console.log(`[rde] parse: ${Math.round(performance.now() - tParse)} ms (${loaded.imageCount} media, ${loaded.totalDetections} detections)`);
         state.options = JSON.parse(loaded.defaultOptions);
+        // A stored preference is only a preference if it survives a new
+        // document; the defaults come back from the wasm without it.
+        state.options.camera_from_top = settings.cameraFromTop;
         DEFAULT_OPTIONS = JSON.parse(loaded.defaultOptions);
         const thresholdOverride = Number(new URLSearchParams(location.search).get("threshold"));
         state.threshold = thresholdOverride >= MIN_THRESHOLD
@@ -1251,7 +1345,7 @@
         syncTuneToggle();
         renderStats();
         syncSteps();
-        $("focus-toggle").hidden = false;
+        setFocus(false);
         status.textContent = `Loaded ${file.name}. ${state.groups.length.toLocaleString()} candidate group(s).`;
         goToGroup(0);
         updateExportBar();
@@ -1566,11 +1660,29 @@
 
     // Cameras for a candidate level, straight from the paths — no clustering
     // needed, so the consequence of a choice is visible before committing to it.
+    /// Must agree with `rde-core::camera_of`, which is what actually groups the
+    /// detections. It did not: a path with no folder that far up was dropped
+    /// from the count entirely, while the clustering assigns it to its top-most
+    /// folder. So on any document with uneven trees the camera count and the
+    /// "show all" list quietly described a different grouping from the one being
+    /// computed — under-reporting by however many files were too shallow.
+    /// Mirrors `rde-core::camera_of`. Both previews go through this so neither
+    /// can drift from the clustering, which is how the count came to disagree
+    /// with the grouping in the first place.
+    function cameraOf(path, level, fromTop) {
+      const parts = String(path).split(/[\\/]/).filter(Boolean);
+      if (fromTop) {
+        // Never the filename: clamp to the last folder.
+        return parts[Math.min(level, Math.max(parts.length - 2, 0))] || "";
+      }
+      return parts.length >= 2 + level ? parts[parts.length - 2 - level] : parts[0] || "";
+    }
+
     function camerasAtLevel(level) {
       const counts = new Map();
+      const fromTop = Boolean(state.options.camera_from_top);
       for (const path of state.imageFiles || []) {
-        const parts = String(path).split(/[\\/]/).filter(Boolean);
-        const name = parts[parts.length - 2 - level];
+        const name = cameraOf(path, level, fromTop);
         if (name) counts.set(name, (counts.get(name) || 0) + 1);
       }
       return counts;
@@ -1596,6 +1708,17 @@
       } else if (media && names.length > media * 0.5) {
         summary.textContent = `${note} — almost one camera per file, so nothing can recur`;
         summary.classList.add("warn");
+      } else {
+        // Counting from the leaf makes uneven trees behave; the exception is a
+        // path with no folder that far up, which falls back to its top-most one
+        // and so joins a camera picked by a different rule than its neighbours.
+        const shallow = (state.imageFiles || []).filter(Boolean)
+          .filter((p) => p.split(/[\\/]/).filter(Boolean).length < 2 + level).length;
+        if (shallow) {
+          summary.textContent = `${note} — ${shallow.toLocaleString()} file(s) are not that deep, ` +
+            `so their top folder is used instead`;
+          summary.classList.add("warn");
+        }
       }
       const list = $("camera-list");
       list.textContent = "";
@@ -1610,18 +1733,37 @@
     // Offer the real folder names rather than a depth number: "which of these is
     // the camera?" is a question about this dataset, and the answer is legible
     // only if you can see the names it would produce.
+    /// The folder that counts as one camera, offered as what each level actually
+    /// produces across the whole document.
+    ///
+    /// Levels are counted from the LEAF of each path, independently — level 0 is
+    /// "the folder the file is in" whether that file is two folders deep or five.
+    /// That is what makes a document with uneven trees work, and it is also the
+    /// thing nobody can tell from a bare number, so each option says how many
+    /// cameras it yields and names two of them.
+    ///
+    /// This used to label the levels from ONE sample path, which is fine while
+    /// every tree is the same depth and quietly wrong the moment they are not:
+    /// the names came from one file's ancestry and described nobody else's.
     function fillCameraLevels() {
       const select = $("opt-camlevel");
-      const sample = (state.imageFiles || []).find(Boolean) || "";
-      const parts = sample.split(/[\\/]/).filter(Boolean);
+      const paths = (state.imageFiles || []).filter(Boolean);
       select.textContent = "";
-      // level 0 is the folder the file sits in, counting back from the leaf
-      for (let level = 0; level < Math.min(5, Math.max(parts.length - 1, 1)); level++) {
-        const name = parts[parts.length - 2 - level];
-        if (!name) break;
+      if (!paths.length) return;
+
+      const split = (p) => p.split(/[\\/]/).filter(Boolean);
+      const deepest = paths.reduce((m, p) => Math.max(m, split(p).length), 0);
+      const levels = Math.min(5, Math.max(deepest - 1, 1));
+
+      for (let level = 0; level < levels; level++) {
+        // What this level gives for every file, not for one of them.
+        const names = new Set();
+        for (const p of paths) names.add(cameraOf(p, level, Boolean(state.options.camera_from_top)));
+        // Names only: the count for the chosen level is on the summary line
+        // next to this, and repeating it in every option just crowds them.
         const option = document.createElement("option");
         option.value = String(level);
-        option.textContent = name;
+        option.textContent = [...names].sort().slice(0, 2).join(", ") + (names.size > 2 ? ", …" : "");
         select.appendChild(option);
       }
       select.value = String(state.options.n_dir_levels_from_leaf);
@@ -1863,6 +2005,7 @@
     document.addEventListener("click", (e) => {
       if (!e.target.closest(".menu-wrap")) precomputeMenu(false);
       if (!e.target.closest("#precompute-why, #precompute-help")) $("precompute-why").hidden = true;
+      if (!e.target.closest("#camlevel-why, #camlevel-help")) $("camlevel-why").hidden = true;
       if (!e.target.closest("#shortcuts, #shortcuts-open")) showShortcuts(false);
     });
     $("tune-collapse").addEventListener("click", collapseTuning);
@@ -1874,6 +2017,10 @@
       if (!state.fileName) return;
       state.cameraConfirmed = true;
       syncSteps();
+      // The select sits below the chip rather than inside it now, so the label's
+      // native focus lands somewhere the eye is not — put it there explicitly
+      // and let the outline say where "there" is.
+      $("opt-camlevel").focus();
     });
     $("opt-camlevel").addEventListener("change", async () => {
       state.cameraConfirmed = true;
@@ -2965,6 +3112,16 @@
       head.appendChild(actions);
       card.appendChild(head);
 
+      // A standing reminder of what the two words mean, and of what is being
+      // judged. Upstream's own author says he still has to think hard about
+      // keep vs drop after doing this many times — which makes it an interface
+      // problem, not something a tooltip or the docs can carry. It sits above
+      // the crops because that is where the decision is made.
+      card.insertAdjacentHTML("beforeend",
+        `<p class="rubric">Judging the <b class="is-current">red box</b> only — other boxes are context.` +
+        `<br /><b class="is-keep">Keep</b> = a real detection, stays in your results. ` +
+        `<b class="is-drop">Drop</b> = a false positive, removed.</p>`);
+
       // buffer bar for the current group's crops
       card.insertAdjacentHTML("beforeend",
         `<div class="buffer" id="buffer"><div class="buffer-track"><div class="buffer-bar" id="buffer-bar"></div></div><span class="buffer-label" id="buffer-label"></span></div>`);
@@ -3552,7 +3709,6 @@
       $("iou-compute").textContent = "Compute IoU sensitivity";
       $("camera-detail").hidden = true;
       setFocus(false);
-      $("focus-toggle").hidden = true;
       syncSteps();
       errorEl.textContent = "";
       $("results").innerHTML = "";

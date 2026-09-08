@@ -48,8 +48,24 @@ pub struct RdeOptions {
     /// Ignore boxes whose area (w·h) is outside this band.
     pub min_suspicious_size: f32,
     pub max_suspicious_size: f32,
-    /// Which folder level (from the leaf) identifies one camera.
+    /// Which folder level identifies one camera. Counted from the leaf by
+    /// default; see `camera_from_top`.
     pub n_dir_levels_from_leaf: usize,
+    /// Count that level down from the top of the path instead of up from the
+    /// file.
+    ///
+    /// Upstream has no such option — `nDirLevelsFromLeaf` is always from the
+    /// leaf, and that stays the default so the same number means the same thing
+    /// in both tools. It exists because the two rules fail on opposite shapes:
+    /// counting from the leaf survives trees that differ ABOVE the camera
+    /// (`camA/`, `siteX/camB/`, `2024/siteY/camC/` all give the camera at level
+    /// 0), and counting from the top survives trees that differ BELOW it
+    /// (`camA/IMG.jpg` vs `camA/2024-01/IMG.jpg` both give `camA` at level 0).
+    /// Neither survives a document that varies at both ends.
+    ///
+    /// `#[serde(default)]`: sessions written before this existed omit it.
+    #[serde(default)]
+    pub camera_from_top: bool,
     /// Compare boxes across detection categories, or keep categories separate.
     pub category_agnostic: bool,
 }
@@ -71,6 +87,7 @@ impl Default for RdeOptions {
             min_suspicious_size: 0.0,
             max_suspicious_size: 0.2,
             n_dir_levels_from_leaf: 0,
+            camera_from_top: false,
             category_agnostic: false,
         }
     }
@@ -279,12 +296,18 @@ impl MdDocument {
     }
 }
 
-/// Camera = the folder `2 + n_dir_levels_from_leaf` components from the end of
-/// the path (matches `verify_rde.py::camera_of` and our `camera_site_from_path`).
-fn camera_of(path: &str, n_dir_levels_from_leaf: usize) -> &str {
+/// Camera = the folder at `level`, counted from the leaf (matches
+/// `verify_rde.py::camera_of` and our `camera_site_from_path`) or from the top.
+fn camera_of(path: &str, level: usize, from_top: bool) -> &str {
     // Splitting on both separators is equivalent to normalizing '\' -> '/' first.
     let parts: Vec<&str> = path.split(['/', '\\']).collect();
-    let want = 2 + n_dir_levels_from_leaf;
+    if from_top {
+        // Never the filename: a path with n components has n-1 folders, and
+        // asking past the last of them clamps to it rather than naming the file.
+        let last_folder = parts.len().saturating_sub(2);
+        return parts.get(level.min(last_folder)).copied().unwrap_or("");
+    }
+    let want = 2 + level;
     if parts.len() >= want {
         parts[parts.len() - want]
     } else {
@@ -373,7 +396,7 @@ pub fn find_suspicious(doc: &MdDocument, opts: &RdeOptions) -> Vec<SuspiciousGro
             continue;
         }
         let file = image.get("file").and_then(|v| v.as_str()).unwrap_or("");
-        let camera = camera_of(file, opts.n_dir_levels_from_leaf);
+        let camera = camera_of(file, opts.n_dir_levels_from_leaf, opts.camera_from_top);
         let Some(detections) = image.get("detections").and_then(|v| v.as_array()) else {
             continue;
         };
@@ -505,4 +528,101 @@ pub fn apply_removals(doc: &MdDocument, refs: &[DetRef]) -> MdDocument {
         }
     }
     MdDocument { root }
+}
+
+#[cfg(test)]
+mod camera_level_tests {
+    use super::camera_of;
+
+    /// Levels are counted from the LEAF, per path, which is what makes a
+    /// document with trees of different depths behave sensibly: level 0 is
+    /// "the folder the file is in" whether that file is two or five deep.
+    /// Upstream names the option `nDirLevelsFromLeaf` for the same reason.
+    #[test]
+    fn levels_are_counted_from_the_leaf_of_each_path() {
+        let shallow = "camA/IMG_0001.jpg";
+        let mid = "siteX/camB/IMG_0002.jpg";
+        let deep = "2024/siteY/camC/sub/IMG_0003.jpg";
+
+        // Level 0: the containing folder, regardless of how deep the path is.
+        assert_eq!(camera_of(shallow, 0, false), "camA");
+        assert_eq!(camera_of(mid, 0, false), "camB");
+        assert_eq!(camera_of(deep, 0, false), "sub");
+
+        // Level 1: one above that.
+        assert_eq!(camera_of(mid, 1, false), "siteX");
+        assert_eq!(camera_of(deep, 1, false), "camC");
+
+        // Level 2.
+        assert_eq!(camera_of(deep, 2, false), "siteY");
+    }
+
+    /// A path with fewer levels than asked for does not error and does not
+    /// vanish: it falls back to its leftmost component. Two files at different
+    /// depths can therefore land in different cameras at the same setting,
+    /// which is the case worth knowing about when a document mixes tree shapes.
+    #[test]
+    fn a_path_too_shallow_for_the_level_falls_back_to_its_top_folder() {
+        let shallow = "camA/IMG_0001.jpg";
+        assert_eq!(camera_of(shallow, 0, false), "camA");
+        // Nothing 1 or 2 levels above the leaf here — the top folder stands in.
+        assert_eq!(camera_of(shallow, 1, false), "camA");
+        assert_eq!(camera_of(shallow, 5, false), "camA");
+
+        // A bare filename has no folder at all.
+        assert_eq!(camera_of("IMG_0001.jpg", 0, false), "IMG_0001.jpg");
+    }
+
+    /// Windows-style separators are the same paths.
+    #[test]
+    fn separators_do_not_change_the_answer() {
+        assert_eq!(camera_of(r"siteX\camB\IMG_0002.jpg", 0, false), "camB");
+        assert_eq!(camera_of(r"siteX\camB\IMG_0002.jpg", 1, false), "siteX");
+    }
+}
+
+#[cfg(test)]
+mod camera_direction_tests {
+    use super::camera_of;
+
+    const SHALLOW: &str = "camA/IMG_0001.jpg";
+    const MID: &str = "siteX/camB/IMG_0002.jpg";
+    const DEEP: &str = "2024/siteY/camC/IMG_0003.jpg";
+
+    /// Trees that differ ABOVE the camera: from the leaf, one level finds every
+    /// camera; from the top, no single level does.
+    #[test]
+    fn from_leaf_handles_trees_that_differ_above_the_camera() {
+        assert_eq!(camera_of(SHALLOW, 0, false), "camA");
+        assert_eq!(camera_of(MID, 0, false), "camB");
+        assert_eq!(camera_of(DEEP, 0, false), "camC");
+
+        // Top-down cannot: level 0 names the project, not the camera.
+        assert_eq!(camera_of(SHALLOW, 0, true), "camA");
+        assert_eq!(camera_of(MID, 0, true), "siteX");
+        assert_eq!(camera_of(DEEP, 0, true), "2024");
+    }
+
+    /// Trees that differ BELOW the camera: the mirror image, and the reason the
+    /// option exists.
+    #[test]
+    fn from_top_handles_trees_that_differ_below_the_camera() {
+        let plain = "camA/IMG_0001.jpg";
+        let dated = "camA/2024-01/IMG_0002.jpg";
+
+        assert_eq!(camera_of(plain, 0, true), "camA");
+        assert_eq!(camera_of(dated, 0, true), "camA");
+
+        // From the leaf the date folder stands in for the camera.
+        assert_eq!(camera_of(plain, 0, false), "camA");
+        assert_eq!(camera_of(dated, 0, false), "2024-01");
+    }
+
+    /// Asking past the last folder clamps to it; it never names the file.
+    #[test]
+    fn from_top_never_selects_the_filename() {
+        assert_eq!(camera_of(SHALLOW, 9, true), "camA");
+        assert_eq!(camera_of(MID, 9, true), "camB");
+        assert_eq!(camera_of("IMG_0001.jpg", 0, true), "IMG_0001.jpg");
+    }
 }
